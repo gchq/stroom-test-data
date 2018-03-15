@@ -1,22 +1,15 @@
-# Compiled class file
-*.class
+.gradle/
+**/target
+build/
+dist/
+generated/
+libs/
+classes/
+target/
 
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
+# IntelliJ
+# Here we ignore everything and create exceptions for what we want to share.
+out/
+*.iml
+/.idea/*
+!/.idea/runConfigurations
