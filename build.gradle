@@ -1,0 +1,161 @@
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.6'
+}
+
+//if the project has a value for the passed property (i.e from the cmd line via -PpropName=xxx)
+//use that, else use a default value
+ext.getPropertyOrDefault = { propName, defaultValue -> 
+    def val;
+    if (project.hasProperty(propName) && project.getProperty(propName) != "unspecified" && project.getProperty(propName) != "") {
+        val = project.getProperty(propName)
+        println "Using property [$propName] with value [$val]"
+    } else {
+        val = defaultValue
+        println "Property [$propName] has no value, using default value [$val]"
+    }
+    return val;
+}
+
+ext.versions = [
+    //------Stroom-Test-Data-----------
+    stroomTestData: getPropertyOrDefault('version', 'SNAPSHOT'),
+
+    //------------3rd-party------------
+    logback: '1.2.1', //in line with dropwizard 1.1.0
+    slf4j: '1.7.24', //in line with dropwizard 1.1.0
+    zzDUMMYzz: 'makes sorting this list easier'
+]
+
+//dependency strings for use in sub projects
+ext.libs = [
+
+    //------------3rd-party------------
+    assertj: 'org.assertj:assertj-core:3.8.0',
+    junit: "junit:junit:4.12",
+    logback_classic: "ch.qos.logback:logback-classic:$versions.logback",
+    logback_core: "ch.qos.logback:logback-core:$versions.logback",
+    slf4j_api: "org.slf4j:slf4j-api:$versions.slf4j",
+    zzDUMMYzz: "makes sorting easier"
+]
+
+buildscript {
+    repositories {
+        mavenLocal()
+        jcenter()
+    }
+    dependencies {
+        classpath 'ca.cutterslade.gradle:gradle-dependency-analyze:1.1.0'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+    }
+}
+
+repositories {
+    mavenLocal()
+    jcenter()
+    maven { url "https://dl.bintray.com/stroom/event-logging" }
+    maven { url "https://dl.bintray.com/stroom/stroom" }
+}
+
+
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'java'
+apply plugin: 'idea'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+group = 'stroom'
+version = versions.stroomTestData
+
+
+def pomConfig = {
+    licenses {
+        license {
+            name "The Apache Software License, Version 2.0"
+            url "http://www.apache.org/licenses/LICENSE-2.0.txt"
+            distribution "repo"
+        }
+    }
+    scm {
+       url "https://github.com/stroom/stroom-test-data"
+    }
+}
+
+
+dependencies {
+    testCompile libs.junit
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact sourcesJar
+            artifact javadocJar
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('name', project.name)
+                root.children().last() + pomConfig
+            }
+        }
+    }
+}
+
+//configuration for the bintray plugin for uploading maven artefacts to bintray
+//see https://github.com/bintray/gradle-bintray-plugin
+//run task bintrayUpload to push the files, assuming BINTRAY_USER/KEY are set as env vars
+bintray {
+    //Must never write these to log or system out
+    user = System.getenv('BINTRAY_USER') //set in Travis UI
+    key = System.getenv('BINTRAY_KEY') //set in Travis UI
+
+    //The maven plugin publications to push to bintray
+    publications = ['mavenJava']
+
+    //immediately make the artefacts public
+    publish = true
+
+    pkg {
+        repo = 'stroom'
+        name = 'stroom-test-data'
+        userOrg = 'stroom'
+        licenses = ['Apache-2.0']
+        vcsUrl = 'https://github.com/gchq/stroom-test-data.git'
+        version {
+            name = "${versions.stroomTestData}"
+            desc = "stroom-test-data-${versions.stroomTestData}"
+            released  = new Date()
+            vcsTag = "${versions.stroomTestData}"
+            gpg {
+                //Bintray will self-sign the files
+                sign = true //Determines whether to GPG sign the files. The default is false
+            }
+        }
+    }
+}
+
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
