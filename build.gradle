@@ -31,6 +31,7 @@ ext.libs = [
 
     //------------3rd-party------------
     assertj: 'org.assertj:assertj-core:3.8.0',
+    guava: "com.google.guava:guava:21.0", 
     junit: "junit:junit:4.12",
     logback_classic: "ch.qos.logback:logback-classic:$versions.logback",
     logback_core: "ch.qos.logback:logback-core:$versions.logback",
@@ -85,7 +86,12 @@ def pomConfig = {
 
 
 dependencies {
+    compile libs.guava
+    compile libs.slf4j_api
+
     testCompile libs.junit
+    testCompile libs.logback_classic
+    testCompile libs.logback_core
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
