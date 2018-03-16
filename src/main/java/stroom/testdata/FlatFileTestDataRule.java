@@ -6,6 +6,8 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +21,7 @@ public class FlatFileTestDataRule implements TestRule {
     private final TemporaryFolder folder;
     private final int numberOfFiles;
     private final Consumer<Consumer<String>> testDataGenerator;
-    private final List<File> dataFiles = new ArrayList<>();
+    private final List<Path> dataFiles = new ArrayList<>();
 
     private FlatFileTestDataRule(final Builder builder) {
         this.folder = builder.folder;
@@ -47,7 +49,7 @@ public class FlatFileTestDataRule implements TestRule {
         return folder.getRoot();
     }
 
-    public List<File> getDataFiles() {
+    public List<Path> getDataFiles() {
         return dataFiles;
     }
 
@@ -67,7 +69,7 @@ public class FlatFileTestDataRule implements TestRule {
                 });
             }
 
-            dataFiles.add(file);
+            dataFiles.add(file.toPath());
         }
     }
 

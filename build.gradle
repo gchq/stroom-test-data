@@ -87,8 +87,8 @@ def pomConfig = {
 
 dependencies {
     compile libs.guava
-    compile libs.slf4j_api
     compile libs.junit
+    compile libs.slf4j_api
 
     testCompile libs.logback_classic
     testCompile libs.logback_core
