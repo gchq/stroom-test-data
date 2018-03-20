@@ -26,7 +26,8 @@ public class TestDataGenerator {
         builder
                 .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //addition of header row
@@ -48,7 +49,8 @@ public class TestDataGenerator {
                         .outputHeaderRow(false)
                         .build())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //no header row so lines == recCount
@@ -66,7 +68,8 @@ public class TestDataGenerator {
         builder
                 .setDataWriter(XmlElementsDataWriterBuilder.defaultXmlElementFormat())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //addition of xml declaration, plus opening/closing root elements
@@ -88,7 +91,8 @@ public class TestDataGenerator {
                         .recordElementName("myRecordElm")
                         .build())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //addition of xml declaration, plus opening/closing root elements
@@ -106,7 +110,8 @@ public class TestDataGenerator {
         builder
                 .setDataWriter(XmlAttributesDataWriterBuilder.defaultXmlElementFormat())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //addition of xml declaration, plus opening/closing root elements
@@ -129,7 +134,8 @@ public class TestDataGenerator {
                         .fieldValueElementName("myFieldValue")
                         .build())
                 .rowCount(recCount)
-                .consumedBy(lines::add)
+                .consumedBy(stringStream ->
+                        stringStream.forEach(lines::add))
                 .generate();
 
         //addition of xml declaration, plus opening/closing root elements
