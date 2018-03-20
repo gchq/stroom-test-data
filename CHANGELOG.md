@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+* Data Generator consume by function now takes a stream of strings, easier when complex resource based consumption required.
+
 ## [v0.1.0] - 2018-03-20
 
 * Initial release

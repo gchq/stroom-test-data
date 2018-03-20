@@ -446,7 +446,7 @@ public class DataGenerator {
     public static class DefinitionBuilder {
 
         private List<Field> fieldDefinitions = new ArrayList<>();
-        private Consumer<String> rowStreamConsumer;
+        private Consumer<Stream<String>> rowStreamConsumer;
         private int rowCount = 1;
         private DataWriter dataWriter;
         private boolean isParallel = false;
@@ -461,7 +461,7 @@ public class DataGenerator {
             return this;
         }
 
-        public DefinitionBuilder consumedBy(final Consumer<String> rowStreamConsumer) {
+        public DefinitionBuilder consumedBy(final Consumer<Stream<String>> rowStreamConsumer) {
             this.rowStreamConsumer = Preconditions.checkNotNull(rowStreamConsumer);
             return this;
         }
@@ -497,7 +497,7 @@ public class DataGenerator {
             //convert our stream of data records into a stream of strings that possibly
             //includes adding things like header/footer rows, tags, delimiters, etc.
             final Stream<String> rowStream = dataWriter.mapRecords(fieldDefinitions, generateDataRows());
-            rowStream.forEach(rowStreamConsumer);
+            rowStreamConsumer.accept(rowStream);
         }
 
         private Stream<Record> generateDataRows() {

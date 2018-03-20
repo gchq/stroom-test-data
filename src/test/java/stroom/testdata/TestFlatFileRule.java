@@ -44,7 +44,7 @@ public class TestFlatFileRule {
                         DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
                 .rowCount(ROW_COUNT)
-                .consumedBy(writer)
+                .consumedBy(s -> s.forEach(writer))
                 .generate();
     }
 
