@@ -18,25 +18,23 @@ ext.getPropertyOrDefault = { propName, defaultValue ->
 
 ext.versions = [
     //------Stroom-Test-Data-----------
-    stroomTestData: getPropertyOrDefault('version', 'SNAPSHOT'),
+    stroomTestData :  getPropertyOrDefault('version', 'SNAPSHOT'),
 
     //------------3rd-party------------
-    logback: '1.2.1', //in line with dropwizard 1.1.0
-    slf4j: '1.7.24', //in line with dropwizard 1.1.0
-    zzDUMMYzz: 'makes sorting this list easier'
+    logback   :  '1.2.1', 
+    zzDUMMYzz :  'makes sorting this list easier'
 ]
 
 //dependency strings for use in sub projects
 ext.libs = [
-
     //------------3rd-party------------
-    assertj: 'org.assertj:assertj-core:3.8.0',
-    guava: "com.google.guava:guava:21.0", 
-    junit: "junit:junit:4.12",
-    logback_classic: "ch.qos.logback:logback-classic:$versions.logback",
-    logback_core: "ch.qos.logback:logback-core:$versions.logback",
-    slf4j_api: "org.slf4j:slf4j-api:$versions.slf4j",
-    zzDUMMYzz: "makes sorting easier"
+    assertj         :  "org.assertj:assertj-core:3.8.0",
+    guava           :  "com.google.guava:guava:21.0",
+    junit           :  "junit:junit:4.12",
+    logback_classic :  "ch.qos.logback:logback-classic:$versions.logback",
+    logback_core    :  "ch.qos.logback:logback-core:$versions.logback",
+    slf4j_api       :  "org.slf4j:slf4j-api:1.7.24",
+    zzDUMMYzz       :  "makes sorting easier"
 ]
 
 buildscript {
@@ -53,10 +51,8 @@ buildscript {
 repositories {
     mavenLocal()
     jcenter()
-    maven { url "https://dl.bintray.com/stroom/event-logging" }
     maven { url "https://dl.bintray.com/stroom/stroom" }
 }
-
 
 apply plugin: 'maven'
 apply plugin: 'maven-publish'
@@ -70,7 +66,6 @@ targetCompatibility = 1.8
 group = 'stroom'
 version = versions.stroomTestData
 
-
 def pomConfig = {
     licenses {
         license {
@@ -83,7 +78,6 @@ def pomConfig = {
        url "https://github.com/stroom/stroom-test-data"
     }
 }
-
 
 dependencies {
     compile libs.guava
@@ -155,7 +149,6 @@ bintray {
         }
     }
 }
-
 
 publishing {
     publications {
