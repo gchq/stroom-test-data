@@ -3,6 +3,8 @@ A generic library for generating test data with configurable fields, formats and
 
 The defintion of the test data is done in pure java so can easily be used in a JUnit test.
 
+## Example 
+
 An example use is as follows:
 
 ``` java
@@ -60,10 +62,30 @@ DataGenerator.buildDefinition()
             "randomWordsField",
             0,
             3,
-            Arrays.asList("attractive", "bald", "beautiful", "chubby", "drab", "elegant", "scruffy", "fit", "glamorous", "handsome", "unkempt")))
+            Arrays.asList(
+                "attractive", "bald", "beautiful", "chubby", "drab", 
+                "elegant", "scruffy", "fit", "glamorous", "handsome", "unkempt")))
     .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
     .consumedBy(DataGenerator.getFileOutputConsumer(Paths.get("/tmp/testdata.csv")))
     .multiThreaded()
     .rowCount(recCount)
     .generate();
+```
+
+## Adding stroom-test-data to your Java project
+
+Stroom-test-data is published on Bintray at [bintray.com/stroom/stroom/stroom-test-data](https://bintray.com/stroom/stroom/stroom-test-data). You will need to add the `stroom` repository to your build tool. For example if you are using Gradle you will need to set your repositories to something like this:
+
+``` groovy
+repositories {
+    mavenLocal()
+    jcenter()
+    maven { url "https://dl.bintray.com/stroom/stroom" }
+}
+```
+
+You can then add the dependency as follows:
+
+``` groovy
+testCompile 'stroom:stroom-test-data:v0.1.0'
 ```
