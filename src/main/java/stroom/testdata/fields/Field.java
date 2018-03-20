@@ -1,4 +1,4 @@
-package stroom.testdata;
+package stroom.testdata.fields;
 
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -48,5 +48,6 @@ public class Field {
     public String getName() {
         return name;
     }
+
 
 }

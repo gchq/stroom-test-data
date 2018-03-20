@@ -1,5 +1,7 @@
 package stroom.testdata;
 
+import stroom.testdata.fields.Field;
+
 import java.util.List;
 import java.util.stream.Collectors;
 

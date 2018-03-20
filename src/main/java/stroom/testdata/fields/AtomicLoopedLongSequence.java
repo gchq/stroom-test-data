@@ -1,4 +1,4 @@
-package stroom.testdata;
+package stroom.testdata.fields;
 
 import com.google.common.base.Preconditions;
 

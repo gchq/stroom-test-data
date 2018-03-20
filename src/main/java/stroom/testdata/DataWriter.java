@@ -1,9 +1,8 @@
 package stroom.testdata;
 
-import java.util.List;
 import java.util.stream.Stream;
 
-public interface DataWriter {
-    Stream<String> mapRecords(final List<Field> fieldDefinitions,
-                              final Stream<Record> recordStream);
+public interface DataWriter<T> {
+
+    Stream<T> mapRecords(final Stream<Record> recordStream);
 }

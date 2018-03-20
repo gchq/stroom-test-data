@@ -1,11 +1,16 @@
 package stroom.testdata;
 
+import stroom.testdata.fields.Field;
+import stroom.testdata.fields.FieldValue;
+
 import java.util.List;
 
+/**
+ * Top level record
+ */
 public class Record {
-    //TODO may be better to model this as a Map<Field, String>
-    final List<Field> fieldDefinitions;
-    final List<String> values;
+
+    final List<FieldValue<?>> fieldDefinitions;
 
     public Record(List<Field> fieldDefinitions, List<String> values) {
         this.fieldDefinitions = fieldDefinitions;

@@ -4,6 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import stroom.testdata.fields.Field;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ public class TestDataGenerator {
 
     @Test
     public void testCsv_default() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -38,7 +39,7 @@ public class TestDataGenerator {
 
     @Test
     public void testCsv_custom() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -61,7 +62,7 @@ public class TestDataGenerator {
 
     @Test
     public void testXmlElements_default() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -80,7 +81,7 @@ public class TestDataGenerator {
 
     @Test
     public void testXmlElements_custom() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -103,7 +104,7 @@ public class TestDataGenerator {
 
     @Test
     public void testXmlAttributes_default() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -122,7 +123,7 @@ public class TestDataGenerator {
 
     @Test
     public void testXmlAttributes_custom() {
-        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+        DataDefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
         Queue<String> lines = new ConcurrentLinkedQueue<>();
@@ -168,7 +169,7 @@ public class TestDataGenerator {
         String val = field.getNext();
     }
 
-    private DataGenerator.DefinitionBuilder buildBasicDefinition() {
+    private DataDefinitionBuilder buildBasicDefinition() {
         //start building a definition that uses all field types
         return DataGenerator.buildDefinition()
                 .multiThreaded()

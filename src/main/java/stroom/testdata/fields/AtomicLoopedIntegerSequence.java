@@ -1,4 +1,4 @@
-package stroom.testdata;
+package stroom.testdata.fields;
 
 import com.google.common.base.Preconditions;
 
@@ -12,6 +12,7 @@ class AtomicLoopedIntegerSequence {
     public AtomicLoopedIntegerSequence(final int endExc) {
         this(0, endExc);
     }
+
     public AtomicLoopedIntegerSequence(final int startInc, final int endExc) {
         Preconditions.checkArgument(endExc > startInc);
 

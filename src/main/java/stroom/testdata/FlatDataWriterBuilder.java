@@ -1,5 +1,7 @@
 package stroom.testdata;
 
+import stroom.testdata.fields.Field;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -48,12 +50,12 @@ public class FlatDataWriterBuilder {
                         .collect(Collectors.joining(delimiter));
     }
 
-    public DataWriter build() {
+    public DataWriter<String> build() {
         //return our mapping function which conforms to the DataWriter interface
         return this::mapRecords;
     }
 
-    private Stream<String> mapRecords(List<Field> fieldDefinitions, Stream<Record> recordStream) {
+    private Stream<String> mapRecords(Stream<Record> recordStream) {
         Function<Record, String> dataMapper = getDataMapper();
 
         Stream<String> dataStream = recordStream.map(dataMapper);

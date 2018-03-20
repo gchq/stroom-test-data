@@ -1,5 +1,7 @@
 package stroom.testdata;
 
+import stroom.testdata.fields.Field;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -25,7 +27,7 @@ public abstract class AbstractXmlDataWriterBuilder {
         return this;
     }
 
-    public DataWriter build() {
+    public DataWriter<String> build() {
         //return our mapping function which conforms to the DataWriter interface
         return this::mapRecords;
     }
@@ -42,7 +44,7 @@ public abstract class AbstractXmlDataWriterBuilder {
 
     protected abstract String buildRecordFormatString(List<Field> fields);
 
-    Stream<String> mapRecords(List<Field> fields, Stream<Record> recordStream) {
+    Stream<String> mapRecords(Stream<Record> recordStream) {
         final Function<Record, String> dataMapper = getDataMapper(fields);
 
         final Stream<String> dataStream = recordStream.map(dataMapper);
