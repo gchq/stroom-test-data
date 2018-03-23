@@ -34,7 +34,7 @@ public class DataGenerator {
 
     /**
      * Method to begin the process of building a test data generator definition and producing the test data.
-     *
+     * @return A definition builder
      */
     public static DefinitionBuilder buildDefinition() {
         return new DefinitionBuilder();
@@ -49,6 +49,7 @@ public class DataGenerator {
     }
 
     /**
+     * @param filePath  The path of the file to write
      * @return A pre-canned stream consumer that writes each string to the file
      * at filePath
      */
@@ -69,6 +70,10 @@ public class DataGenerator {
     /**
      * Stateful value supplier that supplies a value from values in sequential order
      * looping back to the beginning when it gets to the end.
+     *
+     * @param name      Field name for use in the header
+     * @param values    The values to loop through when delivering values to rows
+     * @return A complete {@link Field}
      */
     public static Field sequentialValueField(final String name, final List<String> values) {
         try {
@@ -86,6 +91,9 @@ public class DataGenerator {
 
     /**
      * {@link Field} that supplies a random value from values on each call to getNext()
+     * @param name      Field name for use in the header
+     * @param values    The values to randomly select from when delivering values
+     * @return A complete {@link Field}
      */
     public static Field randomValueField(final String name, final List<String> values) {
         try {
@@ -102,7 +110,7 @@ public class DataGenerator {
 
     /**
      * @param name         Field name for use in the header
-     * @param format       A {@link String:format} compatible format containing a single
+     * @param format       {@link String#format} compatible format containing a single
      *                     placeholder, e.g. "user-%s" or "user-%03d"
      * @param maxNumberExc A random number between 0 (inclusive) and maxNumberExc (exclusive) will
      *                     replace the %s in the format string
@@ -129,7 +137,7 @@ public class DataGenerator {
      * sequentially and loops back round when it hits endEx.
      *
      * @param name     Field name for use in the header
-     * @param format   A {@link String:format} compatible format containing a single
+     * @param format   {@link String#format} compatible format containing a single
      *                 placeholder, e.g. "user-%s" or "user-%03d"
      * @param startInc The lowest value to use in the string format (inclusive)
      * @param endExc   The highest value to use in the string format (exclusive)
@@ -159,6 +167,11 @@ public class DataGenerator {
     /**
      * A field that produces sequential integers starting at startInc (inclusive).
      * If endExc (exclusive) is reached it will loop back round to startInc.
+     * @param name     Field name for use in the header
+     * @param startInc The lowest value to use in the string format (inclusive)
+     * @param endExc   The highest value to use in the string format (exclusive)
+     *                 replace the %s in the format string
+     * @return A complete {@link Field}
      */
     public static Field sequentialNumberField(final String name,
                                               final long startInc,
@@ -180,6 +193,11 @@ public class DataGenerator {
 
     /**
      * A field that produces integers between startInc (inclusive) and endExc (exclusive)
+     * @param name     Field name for use in the header
+     * @param startInc The lowest value to use in the string format (inclusive)
+     * @param endExc   The highest value to use in the string format (exclusive)
+     *                 replace the %s in the format string
+     * @return A complete {@link Field}
      */
     public static Field randomNumberField(final String name,
                                           final int startInc,
@@ -198,6 +216,8 @@ public class DataGenerator {
 
     /**
      * A field that produces IP address conforming to [0-9]{1-3}\.[0-9]{1-3}\.[0-9]{1-3}\.[0-9]{1-3}
+     * @param name     Field name for use in the header
+     * @return A complete {@link Field}
      */
     public static Field randomIpV4Field(final String name) {
 
@@ -220,7 +240,11 @@ public class DataGenerator {
      * A field to produce a sequence of random datetime values within a defined time range.
      * The formatter controls the output format.
      *
+     * @param name     Field name for use in the header
+     * @param startDateInc The start date for the random times (inclusive)
+     * @param endDateExc The end date of random times (exclusive)
      * @param formatStr Format string conforming to the format expected by {@link DateTimeFormatter}
+     * @return A complete {@link Field}
      */
     public static Field randomDateTimeField(final String name,
                                             final LocalDateTime startDateInc,
@@ -240,6 +264,11 @@ public class DataGenerator {
     /**
      * A field to produce a sequence of random datetime values within a defined time range.
      * The formatter controls the output format.
+     * @param name     Field name for use in the header
+     * @param startDateInc The start date for the random times (inclusive)
+     * @param endDateExc The end date of random times (exclusive)
+     * @param formatter {@link DateTimeFormatter} to use
+     * @return A complete {@link Field}
      */
     public static Field randomDateTimeField(final String name,
                                             final LocalDateTime startDateInc,
@@ -273,6 +302,12 @@ public class DataGenerator {
     /**
      * A field to produce a sequence of datetime values with a constant delta based on
      * a configured start datetime and delta. The formatter controls the output format.
+     *
+     * @param name     Field name for use in the header
+     * @param startDateInc The start date for the random times (inclusive)
+     * @param delta The delta to apply to successive values
+     * @param formatStr Format string conforming to the format expected by {@link DateTimeFormatter}
+     * @return A complete {@link Field}
      */
     public static Field sequentialDateTimeField(final String name,
                                                 final LocalDateTime startDateInc,
@@ -289,6 +324,12 @@ public class DataGenerator {
     /**
      * A field to produce a sequence of datetime values with a constant delta based on
      * a configured start datetime and delta. The formatter controls the output format.
+     *
+     * @param name     Field name for use in the header
+     * @param startDateInc The start date for the random times (inclusive)
+     * @param delta The delta to apply to successive values
+     * @param formatter {@link DateTimeFormatter} to use
+     * @return A complete {@link Field}
      */
     public static Field sequentialDateTimeField(final String name,
                                                 final LocalDateTime startDateInc,
@@ -314,6 +355,8 @@ public class DataGenerator {
 
     /**
      * A field that produces a new random UUID on each call to getNext()
+     * @param name     Field name for use in the header
+     * @return A complete {@link Field}
      */
     public static Field uuidField(final String name) {
         try {
@@ -327,6 +370,10 @@ public class DataGenerator {
      * A field populated with a random number (between minCount and maxCount) of
      * words separated by ' '. The words are picked at random from all the class
      * names in the 'java' package on the classpath
+     * @param name     Field name for use in the header
+     * @param minCount  The minimum number of words to use when generation values
+     * @param maxCount  The maximum number of words to use when generation values
+     * @return A complete {@link Field}
      */
     public static Field randomClassNamesField(final String name,
                                               final int minCount,
@@ -352,6 +399,11 @@ public class DataGenerator {
     /**
      * A field populated with a random number (between minCount and maxCount) of
      * words separated by ' ' as picked randomly from wordList
+     * @param name     Field name for use in the header
+     * @param minCount  The minimum number of words to use when generation values
+     * @param maxCount  The maximum number of words to use when generation values
+     * @param wordList  The list of words to choose from when building values
+     * @return A complete {@link Field}
      */
     public static Field randomWordsField(final String name,
                                          final int minCount,
