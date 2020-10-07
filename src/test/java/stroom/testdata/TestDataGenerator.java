@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TestDataGenerator {
@@ -71,7 +72,7 @@ public class TestDataGenerator {
     }
 
     @Test
-    public void testFileOutputConsumer() {
+    public void testMultiLineFileOutputConsumer() {
         DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
@@ -90,6 +91,28 @@ public class TestDataGenerator {
         final int lineCount = dumpFile(outFile);
 
         Assertions.assertThat(lineCount).isEqualTo(recCount + 1);
+    }
+
+    @Test
+    public void testSingleLineFileOutputConsumer() {
+        DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
+
+        int recCount = 10;
+        Path outFile = getTempFile();
+        Queue<String> lines = new ConcurrentLinkedQueue<>();
+        builder
+                .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
+                .rowCount(recCount)
+                .consumedBy(DataGenerator.getFileOutputConsumer(outFile, "|"))
+                .generate();
+
+        //addition of header row
+        Assertions.assertThat(outFile)
+                .isRegularFile();
+
+        final int lineCount = dumpFile(outFile);
+
+        Assertions.assertThat(lineCount).isEqualTo(1);
     }
 
     @Test
@@ -213,6 +236,9 @@ public class TestDataGenerator {
         //start building a definition that uses all field types
         return DataGenerator.buildDefinition()
                 .multiThreaded()
+                .addFieldDefinition(DataGenerator.fakerField(
+                        "carNumberPlate",
+                        faker -> faker.regexify("[A-Z]{2}[0156][0-9] [A-Z]{3}")))
                 .addFieldDefinition(DataGenerator.sequentialValueField(
                         "sequentialValueField",
                         Arrays.asList("One", "Two", "Three")))
@@ -258,10 +284,6 @@ public class TestDataGenerator {
                         Duration.ofDays(1),
                         "yyyyMMdd"))
                 .addFieldDefinition(DataGenerator.uuidField("uuidField"))
-                .addFieldDefinition(DataGenerator.randomClassNamesField(
-                        "randomClassNamesField",
-                        0,
-                        3))
                 .addFieldDefinition(DataGenerator.randomWordsField(
                         "randomWordsField",
                         0,
@@ -284,16 +306,14 @@ public class TestDataGenerator {
         Utils.checkArgument(Files.isReadable(file));
         try {
             try (Stream<String> stringStream = Files.lines(file)) {
-                final StringBuilder stringBuilder = new StringBuilder();
-
-                AtomicInteger counter = new AtomicInteger(0);
-                stringStream
+                final AtomicInteger counter = new AtomicInteger(0);
+                final String content = stringStream
                         .peek(str -> counter.incrementAndGet())
-                        .forEach(stringBuilder::append);
+                        .collect(Collectors.joining("\n"));
 
                 LOGGER.info("File {} contents:\n{}",
                         file.toAbsolutePath().normalize().toString(),
-                        stringBuilder.toString());
+                        content);
 
                 return counter.get();
             }

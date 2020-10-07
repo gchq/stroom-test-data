@@ -30,10 +30,10 @@ ext.versions = [
 ext.libs = [
     //------------3rd-party------------
     assertj                        :  "org.assertj:assertj-core:3.8.0",
-    guava                          :  "com.google.guava:guava:21.0",
-    junit_jupiter_api              : "org.junit.jupiter:junit-jupiter-api:$versions.junit_jupiter",
-    junit_jupiter_engine           : "org.junit.jupiter:junit-jupiter-engine:$versions.junit_jupiter",
-    junit_jupiter_params           : "org.junit.jupiter:junit-jupiter-params:$versions.junit_jupiter",
+    java_faker                     :  "com.github.javafaker:javafaker:1.0.2",
+    junit_jupiter_api              :  "org.junit.jupiter:junit-jupiter-api:$versions.junit_jupiter",
+    junit_jupiter_engine           :  "org.junit.jupiter:junit-jupiter-engine:$versions.junit_jupiter",
+    junit_jupiter_params           :  "org.junit.jupiter:junit-jupiter-params:$versions.junit_jupiter",
     logback_classic                :  "ch.qos.logback:logback-classic:$versions.logback",
     logback_core                   :  "ch.qos.logback:logback-core:$versions.logback",
     slf4j_api                      :  "org.slf4j:slf4j-api:1.7.24",
@@ -83,7 +83,7 @@ def pomConfig = {
 }
 
 dependencies {
-    compile libs.guava // Needed for getting class loader classes
+    compile libs.java_faker
     compile libs.junit_jupiter_api // compile due to
     compile libs.slf4j_api
 

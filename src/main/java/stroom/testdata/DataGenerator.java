@@ -1,6 +1,6 @@
 package stroom.testdata;
 
-import com.google.common.reflect.ClassPath;
+import com.github.javafaker.Faker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,11 +15,12 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,15 +63,7 @@ public class DataGenerator {
         Objects.requireNonNull(filePath);
         Utils.checkArgument(Files.isWritable(filePath), "File {} does not exist or is not writable", filePath);
 
-        return stringStream -> {
-            try {
-                Files.write(filePath, (Iterable<String>) stringStream::iterator);
-            } catch (IOException e) {
-                throw new RuntimeException(Utils.message("Error writing to file {}",
-                        filePath.toAbsolutePath().toString()), e);
-            }
-        };
-
+        return getFileOutputConsumer(filePath, "\n");
     }
 
     /**
@@ -89,17 +82,19 @@ public class DataGenerator {
                 try (final BufferedWriter writer = new BufferedWriter(
                         new FileWriter(filePath.toFile(), true))) {
 
+                    AtomicBoolean isFirstRecord = new AtomicBoolean(true);
                     recordStream.forEach(recordStr -> {
                         try {
-                            writer.append(recordStr);
-                            if (!recordSeparator.isEmpty()) {
+                            if (!isFirstRecord.get() && !recordSeparator.isEmpty()) {
                                 writer.append(recordSeparator);
                             }
+                            writer.append(recordStr);
                         } catch (IOException e) {
                             throw new RuntimeException("Error writing line to file "
                                     + filePath.toAbsolutePath().normalize().toString() + ": "
                                     + e.getMessage());
                         }
+                        isFirstRecord.set(false);
                     });
                 }
             } catch (IOException e) {
@@ -108,6 +103,44 @@ public class DataGenerator {
                         + e.getMessage());
             }
         };
+    }
+
+    /**
+     * See {@link #fakerField(String, Function, Locale)}
+     * <p>
+     * Uses the default locale of the JVM.
+     * </p>
+     */
+    public static Field fakerField(final String name,
+                                   final Function<Faker, String> fakerFunction) {
+       return fakerField(name, fakerFunction, Locale.getDefault());
+    }
+
+    /**
+     * Uses java-faker to produce values of various types.
+     * See https://github.com/DiUS/java-faker
+     * e.g.
+     * <pre>
+     * fakerField("beer", faker -> faker.beer().name(), Locale.UK)
+     * </pre>
+     */
+    public static Field fakerField(final String name,
+                                   final Function<Faker, String> fakerFunction,
+                                   final Locale locale) {
+        try {
+            Objects.requireNonNull(name);
+            Objects.requireNonNull(fakerFunction);
+            Objects.requireNonNull(locale);
+
+            final Faker faker = Faker.instance(locale);
+
+            final Supplier<String> supplier = () ->
+                    fakerFunction.apply(faker);
+            return new Field(name, supplier);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    Utils.message("Error building fakerField, {}, {}", name, e.getMessage()), e);
+        }
     }
 
     /**
@@ -423,36 +456,6 @@ public class DataGenerator {
 
     /**
      * A field populated with a random number (between minCount and maxCount) of
-     * words separated by ' '. The words are picked at random from all the class
-     * names in the 'java' package on the classpath
-     * @param name     Field name for use in the header
-     * @param minCount  The minimum number of words to use when generation values
-     * @param maxCount  The maximum number of words to use when generation values
-     * @return A complete {@link Field}
-     */
-    public static Field randomClassNamesField(final String name,
-                                              final int minCount,
-                                              final int maxCount) {
-        try {
-            final List<String> classNames;
-            try {
-                classNames = ClassNamesListHolder.getClassNames();
-            } catch (Exception e) {
-                throw new RuntimeException(Utils.message("Error getting class names list, {}", e.getMessage()), e);
-            }
-
-            Objects.requireNonNull(classNames);
-            Utils.checkArgument(!classNames.isEmpty(),
-                    "classNames cannot be empty, something has gone wrong finding the class names");
-
-            return randomWordsField(name, minCount, maxCount, classNames);
-        } catch (Exception e) {
-            throw new RuntimeException(Utils.message("Error building randomClassNamesField, {}, {}", name, e.getMessage()), e);
-        }
-    }
-
-    /**
-     * A field populated with a random number (between minCount and maxCount) of
      * words separated by ' ' as picked randomly from wordList
      * @param name     Field name for use in the header
      * @param minCount  The minimum number of words to use when generation values
@@ -504,48 +507,6 @@ public class DataGenerator {
                     random.nextInt(delta) + startInc;
         } catch (Exception e) {
             throw new RuntimeException(Utils.message("Error building randomNumberSupplier, {}", e.getMessage()), e);
-        }
-    }
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    /**
-     * Holder class for the static class names list to allow for lazy initialisation
-     */
-    private static class ClassNamesListHolder {
-        private static List<String> classNames;
-
-        static final List<String> NOT_FOUND_LIST = Collections.singletonList("ERROR_NO_CLASS_NAMES_FOUND");
-
-        static {
-            //lazy initialisation
-            classNames = generateList();
-//            System.out.println("ClassNames size: " + classNames.size());
-        }
-
-        static List<String> getClassNames() {
-            return classNames;
-        }
-
-        private static List<String> generateList() {
-
-            try {
-                final ClassLoader loader = Thread.currentThread().getContextClassLoader();
-
-                List<String> classNames = ClassPath.from(loader).getAllClasses().stream()
-                        .filter(classInfo -> classInfo.getPackageName().startsWith("java."))
-                        .map(ClassPath.ClassInfo::getSimpleName)
-                        .collect(Collectors.toList());
-
-                if (classNames.isEmpty()) {
-                    return NOT_FOUND_LIST;
-                } else {
-                    return classNames;
-                }
-            } catch (Exception e) {
-                LOGGER.error("Error reading classloader", e);
-                return NOT_FOUND_LIST;
-            }
         }
     }
 
@@ -606,7 +567,10 @@ public class DataGenerator {
             //convert our stream of data records into a stream of strings that possibly
             //includes adding things like header/footer rows, tags, delimiters, etc.
             final Stream<String> rowStream = dataWriter.mapRecords(fieldDefinitions, generateDataRows());
-            rowStreamConsumer.accept(rowStream);
+
+            // The consumers, e.g. file writers are likely not thread safe so make the stream sequential at this
+            // point
+            rowStreamConsumer.accept(rowStream.sequential());
         }
 
         private Stream<Record> generateDataRows() {
