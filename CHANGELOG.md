@@ -6,9 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-### Added
-
-### Changed
+* Uplift to junit5
 
 * Data Generator consume by function now takes a stream of strings, easier when complex resource based consumption required.
 

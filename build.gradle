@@ -21,20 +21,23 @@ ext.versions = [
     stroomTestData :  getPropertyOrDefault('version', 'SNAPSHOT'),
 
     //------------3rd-party------------
-    logback   :  '1.2.1', 
-    zzDUMMYzz :  'makes sorting this list easier'
+    logback           :  '1.2.1',
+    junit_jupiter     :  '5.6.2',
+    zzDUMMYzz         :  'makes sorting this list easier'
 ]
 
 //dependency strings for use in sub projects
 ext.libs = [
     //------------3rd-party------------
-    assertj         :  "org.assertj:assertj-core:3.8.0",
-    guava           :  "com.google.guava:guava:21.0",
-    junit           :  "junit:junit:4.12",
-    logback_classic :  "ch.qos.logback:logback-classic:$versions.logback",
-    logback_core    :  "ch.qos.logback:logback-core:$versions.logback",
-    slf4j_api       :  "org.slf4j:slf4j-api:1.7.24",
-    zzDUMMYzz       :  "makes sorting easier"
+    assertj                        :  "org.assertj:assertj-core:3.8.0",
+    guava                          :  "com.google.guava:guava:21.0",
+    junit_jupiter_api              : "org.junit.jupiter:junit-jupiter-api:$versions.junit_jupiter",
+    junit_jupiter_engine           : "org.junit.jupiter:junit-jupiter-engine:$versions.junit_jupiter",
+    junit_jupiter_params           : "org.junit.jupiter:junit-jupiter-params:$versions.junit_jupiter",
+    logback_classic                :  "ch.qos.logback:logback-classic:$versions.logback",
+    logback_core                   :  "ch.qos.logback:logback-core:$versions.logback",
+    slf4j_api                      :  "org.slf4j:slf4j-api:1.7.24",
+    zzDUMMYzz                      :  "makes sorting easier"
 ]
 
 buildscript {
@@ -80,12 +83,15 @@ def pomConfig = {
 }
 
 dependencies {
-    compile libs.guava
-    compile libs.junit
+    compile libs.guava // Needed for getting class loader classes
+    compile libs.junit_jupiter_api // compile due to
     compile libs.slf4j_api
 
+    testCompile libs.assertj
     testCompile libs.logback_classic
     testCompile libs.logback_core
+
+    testRuntimeOnly libs.junit_jupiter_engine
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
@@ -156,5 +162,9 @@ publishing {
             from components.java
         }
     }
+}
+
+test {
+    useJUnitPlatform()
 }
 
