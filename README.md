@@ -9,6 +9,9 @@ An example use is as follows:
 
 ``` java
 DataGenerator.buildDefinition()
+    .addFieldDefinition(DataGenerator.fakerField(
+            "beer",
+            faker -> faker.beer().name()))
     .addFieldDefinition(DataGenerator.sequentialValueField(
             "sequentialValueField",
             Arrays.asList("One", "Two", "Three")))
@@ -89,3 +92,21 @@ You can then add the dependency as follows:
 ``` groovy
 testCompile 'stroom:stroom-test-data:v0.1.0'
 ```
+
+## Faker
+
+This library makes use of [Java-Faker](https://github.com/DiUS/java-faker) to allow a richer set of field data to be generated.
+Java-Faker can be used to provide field values as follows:
+
+```java
+        return DataGenerator.buildDefinition()
+                .addFieldDefinition(DataGenerator.fakerField(
+                        "beer",
+                        faker -> faker.beer().name()))
+                .addFieldDefinition(DataGenerator.fakerField(
+                        "carNumberPlate",
+                        faker -> faker.regexify("[A-Z]{2}[0-9]{2} [A-Z]{3}")))
+```
+
+Simply provide a `Function<Faker, String>` that uses one of the faker methods to generate some data.
+The same Faker instance is used for all values generated for a field.

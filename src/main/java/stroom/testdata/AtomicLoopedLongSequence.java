@@ -1,7 +1,5 @@
 package stroom.testdata;
 
-import com.google.common.base.Preconditions;
-
 import java.util.concurrent.atomic.AtomicLong;
 
 class AtomicLoopedLongSequence {
@@ -14,7 +12,7 @@ class AtomicLoopedLongSequence {
     }
 
     public AtomicLoopedLongSequence(final long startInc, final long endExc) {
-        Preconditions.checkArgument(endExc > startInc);
+        Utils.checkArgument(endExc > startInc, "endExc must be > startInc");
 
         this.startInc = startInc;
         this.endExc = endExc;

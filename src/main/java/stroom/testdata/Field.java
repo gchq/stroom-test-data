@@ -1,9 +1,9 @@
 package stroom.testdata;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -28,8 +28,8 @@ public class Field {
     public Field(final String name,
                  final Supplier<String> valueSupplier) {
 
-        this.name = Preconditions.checkNotNull(name);
-        this.valueFunction = Preconditions.checkNotNull(valueSupplier);
+        this.name = Objects.requireNonNull(name);
+        this.valueFunction = Objects.requireNonNull(valueSupplier);
     }
 
     /**
