@@ -78,7 +78,7 @@ public class TestDataGenerator {
         DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
-        Path outFile = getTempFile();
+        Path outFile = getTempFilePath();
         Queue<String> lines = new ConcurrentLinkedQueue<>();
         builder
                 .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
@@ -100,7 +100,7 @@ public class TestDataGenerator {
         DataGenerator.DefinitionBuilder builder = buildBasicDefinition();
 
         int recCount = 10;
-        Path outFile = getTempFile();
+        Path outFile = getTempFilePath();
         Queue<String> lines = new ConcurrentLinkedQueue<>();
         builder
                 .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
@@ -294,9 +294,11 @@ public class TestDataGenerator {
                         Arrays.asList("attractive", "bald", "beautiful", "chubby", "drab", "elegant", "scruffy", "fit", "glamorous", "handsome", "unkempt")));
     }
 
-    private Path getTempFile() {
+    private Path getTempFilePath() {
         try {
             Path file = Files.createTempFile(tempDir, "stroom-test-", "");
+            // Delete it to ensure we are testing its creation
+            Files.delete(file);
             LOGGER.info("Using file path {}", file.toAbsolutePath().normalize().toString());
             return file;
         } catch (IOException e) {

@@ -65,15 +65,17 @@ public class DataGenerator {
                 stringStream.forEach(System.out::println);
     }
 
+    /**
+     * See {@link #getFileOutputConsumer(Path, String)}
+     */
     public static Consumer<Stream<String>> getFileOutputConsumer(final Path filePath) {
         Objects.requireNonNull(filePath);
-        Utils.checkArgument(Files.isWritable(filePath), "File {} does not exist or is not writable", filePath);
 
         return getFileOutputConsumer(filePath, "\n");
     }
 
     /**
-     * @param filePath  The path of the file to write
+     * @param filePath  The path of the file to write, any parent directories will be created.
      * @param recordSeparator The string to separate records with
      * @return A pre-canned stream consumer that writes each string to the file
      * at filePath
@@ -82,7 +84,8 @@ public class DataGenerator {
                                                                  final String recordSeparator) {
         Objects.requireNonNull(filePath);
         Objects.requireNonNull(recordSeparator);
-        Utils.checkArgument(Files.isWritable(filePath), "File {} does not exist or is not writable", filePath);
+
+        ensureDirectories(filePath);
 
         return recordStream -> {
             try {
@@ -498,6 +501,17 @@ public class DataGenerator {
                     RANDOM.nextInt(delta) + startInc;
         } catch (Exception e) {
             throw new RuntimeException(Utils.message("Error building randomNumberSupplier, {}", e.getMessage()), e);
+        }
+    }
+
+    private static void ensureDirectories(final Path file) {
+        if (file.getParent() != null) {
+            try {
+                Files.createDirectories(file.getParent());
+            } catch (IOException e) {
+                throw new RuntimeException("Error creating parent directories for {}"
+                        + file.toAbsolutePath().normalize().toString());
+            }
         }
     }
 
