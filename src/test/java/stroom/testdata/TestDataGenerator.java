@@ -12,8 +12,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -235,6 +237,7 @@ public class TestDataGenerator {
     private DataGenerator.DefinitionBuilder buildBasicDefinition() {
         //start building a definition that uses all field types
         return DataGenerator.buildDefinition()
+                .withRandomSeed(123456L)
                 .multiThreaded()
                 .addFieldDefinition(DataGenerator.fakerField(
                         "carNumberPlate",
@@ -322,4 +325,38 @@ public class TestDataGenerator {
         }
     }
 
+    @Test
+    void testRandomRepeatability() {
+        final List<String> results = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            DataGenerator.buildDefinition()
+                    .withRandomSeed(123456L)
+                    .addFieldDefinition(DataGenerator.fakerField(
+                            "beer",
+                            faker -> faker.beer().name()))
+                    .addFieldDefinition(DataGenerator.fakerField(
+                            "carNumberPlate",
+                            faker -> faker.regexify("[A-Z]{2}[0156][0-9] [A-Z]{3}")))
+                    .addFieldDefinition(DataGenerator.randomNumberField(
+                            "num",
+                            1,
+                            1000))
+                    .addFieldDefinition(DataGenerator.randomDateTimeField(
+                            "date",
+                            LocalDateTime.of(2016, 1, 1, 0, 0, 0),
+                            LocalDateTime.of(2018, 1, 1, 0, 0, 0),
+                            DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
+                    .consumedBy(stringStream ->
+                            results.add(stringStream
+                                    .collect(Collectors.joining("\n"))))
+                    .rowCount(20)
+                    .generate();
+            if (i > 0) {
+                // Ensure each result is the same
+                Assertions.assertThat(results.get(i))
+                        .isEqualTo(results.get(0));
+            }
+        }
+    }
 }
