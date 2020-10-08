@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+* Add `withRandomSeed()` to allow repeatable generation of _random_ data.
+
 
 ## [v0.1.2] - 2020-10-07
 

@@ -38,8 +38,14 @@ import java.util.stream.Stream;
  */
 public class DataGenerator {
 
-    //TODO possibly add a list of first names and surnames so we can have fields like
-    //firstName, surname, fullName, etc.
+    // These are all statics owing to the fact that the field definitions are all created by static
+    // methods.  Need to refactor them to be methods on some sort of builder that can have these things
+    // made available to them.
+    // Use a consistent random generator for all fields, so the generated data should be repeatable
+    // if a seed is provided.
+    private static volatile Random RANDOM = null;
+    private static volatile Faker FAKER = null;
+    private static volatile Locale LOCALE = null;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DataGenerator.class);
 
@@ -68,6 +74,7 @@ public class DataGenerator {
 
     /**
      * @param filePath  The path of the file to write
+     * @param recordSeparator The string to separate records with
      * @return A pre-canned stream consumer that writes each string to the file
      * at filePath
      */
@@ -106,36 +113,24 @@ public class DataGenerator {
     }
 
     /**
-     * See {@link #fakerField(String, Function, Locale)}
-     * <p>
-     * Uses the default locale of the JVM.
-     * </p>
-     */
-    public static Field fakerField(final String name,
-                                   final Function<Faker, String> fakerFunction) {
-       return fakerField(name, fakerFunction, Locale.getDefault());
-    }
-
-    /**
      * Uses java-faker to produce values of various types.
      * See https://github.com/DiUS/java-faker
      * e.g.
-     * <pre>
-     * fakerField("beer", faker -> faker.beer().name(), Locale.UK)
-     * </pre>
+     * <code>
+     * fakerField("beer", faker -&gt; faker.beer().name(), Locale.UK)
+     * </code>
+     * @param name The name of the field
+     * @param fakerFunction The function to call on Faker
+     * @return A new Field instance
      */
     public static Field fakerField(final String name,
-                                   final Function<Faker, String> fakerFunction,
-                                   final Locale locale) {
+                                   final Function<Faker, String> fakerFunction) {
         try {
             Objects.requireNonNull(name);
             Objects.requireNonNull(fakerFunction);
-            Objects.requireNonNull(locale);
-
-            final Faker faker = Faker.instance(locale);
 
             final Supplier<String> supplier = () ->
-                    fakerFunction.apply(faker);
+                    fakerFunction.apply(FAKER);
             return new Field(name, supplier);
         } catch (Exception e) {
             throw new RuntimeException(
@@ -177,9 +172,8 @@ public class DataGenerator {
         try {
             Objects.requireNonNull(values);
             Utils.checkArgument(!values.isEmpty(), "values is empty");
-            final Random random = new Random();
             final Supplier<String> supplier = () ->
-                    values.get(random.nextInt(values.size()));
+                    values.get(RANDOM.nextInt(values.size()));
             return new Field(name, supplier);
         } catch (Exception e) {
             throw new RuntimeException(
@@ -202,9 +196,8 @@ public class DataGenerator {
             Objects.requireNonNull(format);
             Utils.checkArgument(maxNumberExc > 0, "maxNumberExc must be > 0");
 
-            final Random random = new Random();
             final Supplier<String> supplier = () ->
-                    String.format(format, random.nextInt(maxNumberExc));
+                    String.format(format, RANDOM.nextInt(maxNumberExc));
             return new Field(name, supplier);
         } catch (Exception e) {
             throw new RuntimeException(Utils.message(
@@ -373,7 +366,7 @@ public class DataGenerator {
 
             final Supplier<String> supplier = () -> {
                 try {
-                    final long randomDelta = (long) (Math.random() * millisBetween);
+                    final long randomDelta = (long) (RANDOM.nextDouble() * millisBetween);
                     final LocalDateTime dateTime = startDateInc.plus(randomDelta, ChronoUnit.MILLIS);
                     return dateTime.format(formatter);
                 } catch (Exception e) {
@@ -442,7 +435,8 @@ public class DataGenerator {
     }
 
     /**
-     * A field that produces a new random UUID on each call to getNext()
+     * A field that produces a new random UUID on each call to getNext().
+     * Will always be random even if a seed is used for the generator.
      * @param name     Field name for use in the header
      * @return A complete {@link Field}
      */
@@ -476,13 +470,11 @@ public class DataGenerator {
                             "wordList must have size greater than zero, size {}",
                             wordList.size()));
 
-            final Random random = new Random();
-
             Supplier<String> supplier = () -> {
-                int wordCount = random.nextInt(maxCount - minCount + 1) + minCount;
+                int wordCount = RANDOM.nextInt(maxCount - minCount + 1) + minCount;
                 return IntStream.rangeClosed(0, wordCount)
                         .boxed()
-                        .map(i -> wordList.get(random.nextInt(wordList.size())))
+                        .map(i -> wordList.get(RANDOM.nextInt(wordList.size())))
                         .collect(Collectors.joining(" "))
                         .replaceAll("(^\\s+|\\s+$)", "") //remove leading/trailing spaces
                         .replaceAll("\\s\\s+", " "); //replace multiple spaces with one
@@ -500,11 +492,10 @@ public class DataGenerator {
         try {
             Utils.checkArgument(endExc > startInc, "endExc must be >  startInc");
 
-            final Random random = new Random();
             final int delta = endExc - startInc;
 
             return () ->
-                    random.nextInt(delta) + startInc;
+                    RANDOM.nextInt(delta) + startInc;
         } catch (Exception e) {
             throw new RuntimeException(Utils.message("Error building randomNumberSupplier, {}", e.getMessage()), e);
         }
@@ -519,6 +510,8 @@ public class DataGenerator {
         private int rowCount = 1;
         private DataWriter dataWriter;
         private boolean isParallel = false;
+        private Random random = null;
+        private Locale locale = null;
 
         public DefinitionBuilder addFieldDefinition(final Field fieldDefinition) {
             boolean isNamedAlreadyUsed = fieldDefinitions.stream()
@@ -548,11 +541,33 @@ public class DataGenerator {
         }
 
         public DefinitionBuilder multiThreaded() {
-            this.isParallel = true;
+            if (random != null) {
+                this.isParallel = true;
+            }
+            return this;
+        }
+
+        public DefinitionBuilder withRandomSeed(long seed) {
+            this.random = new Random(seed);
+            // Can't run in parallel if using a fixed seed
+            this.isParallel = false;
+            return this;
+        }
+
+        public DefinitionBuilder withLocale(final Locale locale) {
+            this.locale = Objects.requireNonNull(locale);
             return this;
         }
 
         public void generate() {
+            DataGenerator.RANDOM = random != null
+                    ? random
+                    : new Random();
+            DataGenerator.LOCALE = locale != null
+                    ? locale
+                    : Locale.getDefault();
+            DataGenerator.FAKER = new Faker(DataGenerator.LOCALE, DataGenerator.RANDOM);
+
             if (fieldDefinitions.isEmpty()) {
                 throw new RuntimeException("No field definitions defined");
             }
