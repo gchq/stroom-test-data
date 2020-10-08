@@ -74,6 +74,7 @@ public class DataGenerator {
 
     /**
      * @param filePath  The path of the file to write
+     * @param recordSeparator The string to separate records with
      * @return A pre-canned stream consumer that writes each string to the file
      * at filePath
      */
@@ -112,31 +113,21 @@ public class DataGenerator {
     }
 
     /**
-     * See {@link #fakerField(String, Function, Locale)}
-     * <p>
-     * Uses the default locale of the JVM.
-     * </p>
-     */
-    public static Field fakerField(final String name,
-                                   final Function<Faker, String> fakerFunction) {
-       return fakerField(name, fakerFunction, Locale.getDefault());
-    }
-
-    /**
      * Uses java-faker to produce values of various types.
      * See https://github.com/DiUS/java-faker
      * e.g.
-     * <pre>
-     * fakerField("beer", faker -> faker.beer().name(), Locale.UK)
-     * </pre>
+     * <code>
+     * fakerField("beer", faker -&gt; faker.beer().name(), Locale.UK)
+     * </code>
+     * @param name The name of the field
+     * @param fakerFunction The function to call on Faker
+     * @return A new Field instance
      */
     public static Field fakerField(final String name,
-                                   final Function<Faker, String> fakerFunction,
-                                   final Locale locale) {
+                                   final Function<Faker, String> fakerFunction) {
         try {
             Objects.requireNonNull(name);
             Objects.requireNonNull(fakerFunction);
-            Objects.requireNonNull(locale);
 
             final Supplier<String> supplier = () ->
                     fakerFunction.apply(FAKER);
