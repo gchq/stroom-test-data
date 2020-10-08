@@ -67,6 +67,9 @@ public class DataGenerator {
 
     /**
      * See {@link #getFileOutputConsumer(Path, String)}
+     * @param filePath  The path of the file to write, any parent directories will be created.
+     * @return A pre-canned stream consumer that writes each string to the file
+     * at filePath
      */
     public static Consumer<Stream<String>> getFileOutputConsumer(final Path filePath) {
         Objects.requireNonNull(filePath);
@@ -181,6 +184,70 @@ public class DataGenerator {
         } catch (Exception e) {
             throw new RuntimeException(
                     Utils.message("Error building randomValueField, {}, {}", name, e.getMessage()), e);
+        }
+    }
+
+    /**
+     * {@link Field} that supplies a random emoticon emoji on each call to getNext()
+     * @param name      Field name for use in the header
+     * @return A complete {@link Field}
+     */
+    public static Field randomEmoticonEmojiField(final String name) {
+        return randomEmojiField(name, 0x1f600, 0x1f64f);
+    }
+
+    /**
+     * {@link Field} that supplies a random food emoji on each call to getNext()
+     * @param name      Field name for use in the header
+     * @return A complete {@link Field}
+     */
+    public static Field randomFoodEmojiField(final String name) {
+        return randomEmojiField(name, 0x1f32d, 0x1f37f);
+    }
+
+    /**
+     * {@link Field} that supplies a random animal emoji on each call to getNext()
+     * @param name      Field name for use in the header
+     * @return A complete {@link Field}
+     */
+    public static Field randomAnimalEmojiField(final String name) {
+        return randomEmojiField(name, 0x1f400, 0x1f4d3);
+    }
+
+    /**
+     * {@link Field} that supplies a random emoji from the supplied list on each call to getNext()
+     * @param name      Field name for use in the header
+     * @param codePoints A list of code points for the emojis to include.
+     * @return A complete {@link Field}
+     */
+    public static Field randomEmojiField(final String name, final List<Integer> codePoints) {
+        Objects.requireNonNull(codePoints);
+        Utils.checkArgument(!codePoints.isEmpty(), "codePoints is empty");
+        try {
+            final Supplier<String> supplier = () -> {
+                final int codePoint = codePoints.get(RANDOM.nextInt(codePoints.size()));
+                return new StringBuilder().appendCodePoint(codePoint).toString();
+            };
+            return new Field(name, supplier);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    Utils.message("Error building randomEmojiField, {}, {}", name, e.getMessage()), e);
+        }
+    }
+
+    private static Field randomEmojiField(final String name,
+                                         final int minCodePoint,
+                                         final int maxCodePoint) {
+        final int range = maxCodePoint - minCodePoint;
+        try {
+            final Supplier<String> supplier = () -> {
+                final int codePoint = RANDOM.nextInt(range) + minCodePoint;
+                return new StringBuilder().appendCodePoint(codePoint).toString();
+            };
+            return new Field(name, supplier);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    Utils.message("Error building randomEmojiField, {}, {}", name, e.getMessage()), e);
         }
     }
 

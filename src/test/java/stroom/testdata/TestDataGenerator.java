@@ -361,4 +361,19 @@ public class TestDataGenerator {
             }
         }
     }
+
+    @Test
+    void emoji() {
+        DataGenerator.buildDefinition()
+                .addFieldDefinition(DataGenerator.randomEmoticonEmojiField("emoticon"))
+                .addFieldDefinition(DataGenerator.randomAnimalEmojiField("animal"))
+                .addFieldDefinition(DataGenerator.randomFoodEmojiField("food"))
+                .addFieldDefinition(DataGenerator.randomEmojiField(
+                        "cardSuit",
+                        Arrays.asList(0x2660, 0x2665, 0x2666, 0x2663)))
+                .rowCount(10)
+                .setDataWriter(FlatDataWriterBuilder.defaultCsvFormat())
+                .consumedBy(DataGenerator.getSystemOutConsumer())
+                .generate();
+    }
 }
