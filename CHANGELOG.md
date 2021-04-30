@@ -6,9 +6,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+* Change maven group ID to `uk.gov.gchq.stroom.testdata`, move to maven central.
+
+
 ## [v0.2.2] - 2020-10-08
 
 * Add emoji fields.
+
 
 ## [v0.2.1] - 2020-10-08
 
@@ -36,6 +40,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 * Initial release
 
+
+[Unreleased]: https://github.com/gchq/stroom-test-data/compare/v0.2.3...master
+[v0.2.3]: https://github.com/gchq/stroom-test-data/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/gchq/stroom-test-data/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/gchq/stroom-test-data/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/gchq/stroom-test-data/compare/v0.1.2...v0.2.0
