@@ -1,7 +1,3 @@
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.6'
-}
-
 //if the project has a value for the passed property (i.e from the cmd line via -PpropName=xxx)
 //use that, else use a default value
 ext.getPropertyOrDefault = { propName, defaultValue -> 
