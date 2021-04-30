@@ -1,14 +1,38 @@
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.6'
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+plugins {
+    id "io.github.gradle-nexus.publish-plugin" version "1.0.0"
+    id "ca.cutterslade.analyze" version "1.6.0"
+}
+
+ext.isPropertySet = { propName ->
+    if (!project.hasProperty(propName)) {
+        return false
+    } else {
+        def prop = project.getProperty(propName)
+        return (prop != "unspecified" && prop != "" && prop != null)
+    }
+}
+
+ext.ensurePropertyIsSet = { propName -> 
+    if (!isPropertySet(propName)) {
+        throw new GradleException(
+            "Expecting project property [${propName}] or env var [ORG_GRADLE_PROJECT_${propName}] to be set.")
+    }
 }
 
 //if the project has a value for the passed property (i.e from the cmd line via -PpropName=xxx)
 //use that, else use a default value
-ext.getPropertyOrDefault = { propName, defaultValue -> 
+ext.getPropertyOrDefault = { propName, defaultValue ->
     def val;
-    if (project.hasProperty(propName) && project.getProperty(propName) != "unspecified" && project.getProperty(propName) != "") {
+    if (isPropertySet(propName)) {
         val = project.getProperty(propName)
-        println "Using property [$propName] with value [$val]"
+        println "Getting property [$propName] with value [$val]"
     } else {
         val = defaultValue
         println "Property [$propName] has no value, using default value [$val]"
@@ -18,12 +42,11 @@ ext.getPropertyOrDefault = { propName, defaultValue ->
 
 ext.versions = [
     //------Stroom-Test-Data-----------
-    stroomTestData :  getPropertyOrDefault('version', 'SNAPSHOT'),
+    stroomTestData :  getPropertyOrDefault('version', 'SNAPSHOT').replaceFirst(/^v/, ""),
 
     //------------3rd-party------------
     logback           :  '1.2.1',
     junit_jupiter     :  '5.6.2',
-    zzDUMMYzz         :  'makes sorting this list easier'
 ]
 
 //dependency strings for use in sub projects
@@ -37,134 +60,158 @@ ext.libs = [
     logback_classic                :  "ch.qos.logback:logback-classic:$versions.logback",
     logback_core                   :  "ch.qos.logback:logback-core:$versions.logback",
     slf4j_api                      :  "org.slf4j:slf4j-api:1.7.24",
-    zzDUMMYzz                      :  "makes sorting easier"
 ]
 
-buildscript {
-    repositories {
-        mavenLocal()
-        jcenter()
-    }
-    dependencies {
-        classpath 'ca.cutterslade.gradle:gradle-dependency-analyze:1.1.0'
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
-    }
+ext.isReleaseBuild = !versions.stroomTestData.endsWith('SNAPSHOT')
+
+if (isReleaseBuild) {
+    println "This is a release build for maven version [${versions.stroomTestData}]"
+    // Ensure the various props are set for signing and publishing to sonatype
+
+    // The username for Sonatype OSSRH Jira account
+    ensurePropertyIsSet("sonatypeUsername")
+    // The password for Sonatype OSSRH Jira account
+    ensurePropertyIsSet("sonatypePassword")
+    // The GPG2 secret key in ascii armour format, base64 encoded
+    ensurePropertyIsSet("signingKey")
+    // The password for the GPG2 secret key
+    ensurePropertyIsSet("signingPassword")
 }
 
 repositories {
     mavenLocal()
-    jcenter()
-    maven { url "https://dl.bintray.com/stroom/stroom" }
+    mavenCentral()
+    //maven { url "https://dl.bintray.com/stroom/stroom" }
 }
 
-apply plugin: 'maven'
 apply plugin: 'maven-publish'
-apply plugin: 'com.jfrog.bintray'
-apply plugin: 'java'
+apply plugin: 'java-library'
 apply plugin: 'idea'
+apply plugin: 'io.github.gradle-nexus.publish-plugin'
+apply plugin: 'signing'
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+String base64DecodeProjectProperty(String propName) {
+    def encodedVal = project.findProperty(propName)
+    return encodedVal == null
+        ? null
+        : new String(Base64.getDecoder().decode(encodedVal.toString())).trim()
+}
 
-group = 'stroom'
+void configureSigning(Project project) {
+
+    // To create the GPG key do:
+    //   gpg2 --gen-key 
+    // To list it
+    //   gpg2 --list-keys
+    // To publish the public key on a keyserver
+    //   gpg2 --keyserver hkp://keyserver.ubuntu.com --send-keys <your short key id>
+    // To get the ascii-armour private key for use in travis env vars as base64 encoded
+    //   gpg2 --armor --export-secret-keys <your short key id> | base64 -w0
+
+    //project.signing.gnupg.keyName = project.findProperty("signingKeyId")
+
+    project.signing {
+        println "Configuring project to sign maven artifacts"
+        required { project.gradle.taskGraph.hasTask("required") }
+        def signingKeyId = project.findProperty("signingKeyId")
+        def signingKey = base64DecodeProjectProperty("signingKey")
+        def signingPassword = project.findProperty("signingPassword")
+
+        //println "pword: [$signingPassword]"
+        //println "key: [$signingKey]"
+        //println "keyId: [$signingKeyId]"
+
+        if (signingKeyId) {
+            println "Using in memory pgp key with ID"
+            useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+        } else if (signingKey) {
+            println "Using in memory pgp key without ID"
+            useInMemoryPgpKeys(signingKey, signingPassword)
+        }
+        //useGpgCmd()
+        sign project.publishing.publications.mavenJava
+    }
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+group = 'uk.gov.gchq.stroom.testdata'
 version = versions.stroomTestData
 
-def pomConfig = {
-    licenses {
-        license {
-            name "The Apache Software License, Version 2.0"
-            url "http://www.apache.org/licenses/LICENSE-2.0.txt"
-            distribution "repo"
-        }
-    }
-    scm {
-       url "https://github.com/stroom/stroom-test-data"
-    }
-}
-
 dependencies {
-    compile libs.java_faker
-    compile libs.junit_jupiter_api // compile due to
-    compile libs.slf4j_api
+    api libs.java_faker
 
-    testCompile libs.assertj
-    testCompile libs.logback_classic
-    testCompile libs.logback_core
+    implementation libs.junit_jupiter_api // compile due to 
+    implementation libs.slf4j_api
 
+    testImplementation libs.assertj
+
+    testRuntimeOnly libs.logback_classic
+    testRuntimeOnly libs.logback_core
     testRuntimeOnly libs.junit_jupiter_engine
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
+//for java plugin
+//see https://docs.gradle.org/current/userguide/java_plugin.html
+java {
+    //package JavaDoc as part of publication
+    withJavadocJar()
+    //package Sources as part of publication
+    withSourcesJar()
 }
 
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives sourcesJar
-    archives javadocJar
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifact sourcesJar
-            artifact javadocJar
-            pom.withXml {
-                def root = asNode()
-                root.appendNode('name', project.name)
-                root.children().last() + pomConfig
-            }
-        }
-    }
-}
-
-//configuration for the bintray plugin for uploading maven artefacts to bintray
-//see https://github.com/bintray/gradle-bintray-plugin
-//run task bintrayUpload to push the files, assuming BINTRAY_USER/KEY are set as env vars
-bintray {
-    //Must never write these to log or system out
-    user = System.getenv('BINTRAY_USER') //set in Travis UI
-    key = System.getenv('BINTRAY_KEY') //set in Travis UI
-
-    //The maven plugin publications to push to bintray
-    publications = ['mavenJava']
-
-    //immediately make the artefacts public
-    publish = true
-
-    pkg {
-        repo = 'stroom'
-        name = 'stroom-test-data'
-        userOrg = 'stroom'
-        licenses = ['Apache-2.0']
-        vcsUrl = 'https://github.com/gchq/stroom-test-data.git'
-        version {
-            name = "${versions.stroomTestData}"
-            desc = "stroom-test-data-${versions.stroomTestData}"
-            released  = new Date()
-            vcsTag = "${versions.stroomTestData}"
-            gpg {
-                //Bintray will self-sign the files
-                sign = true //Determines whether to GPG sign the files. The default is false
-            }
-        }
-    }
+test {
+    useJUnitPlatform()
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+
+            pom {
+                name = project['name']
+                description = "A generic library for generating test data with configurable fields, formats and outputs."
+                url = 'https://github.com/gchq/stroom-test-data'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        name = 'GCHQDevelopers'
+                        organization = 'GCQH'
+                        organizationUrl = 'https://github.com/gchq'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git@github.com:gchq/stroom-test-data.git'
+                    developerConnection = 'scm:git:git@github.com:gchq/stroom-test-data.git'
+                    url = 'https://github.com/gchq/stroom-test-data'
+                }
+            }         
         }
     }
 }
 
-test {
-    useJUnitPlatform()
+def hasSigningKey = project.hasProperty("signingkeyId") || project.findProperty("signingKey")
+if(hasSigningKey) {
+    configureSigning(project)
+}
+
+// Uses sonotypeUsername and sonotypePassword
+// See https://github.com/rwinch/gradle-publish-ossrh-sample
+// Also https://github.com/kit-data-manager/nexus-publish-example
+nexusPublishing {
+    repositories {
+        sonatype()    //sonatypeUsername and sonatypePassword properties are used automatically
+    }
+    // these are not strictly required. The default timeouts are set to 1 minute. But Sonatype can be really slow.
+    // If you get the error "java.net.SocketTimeoutException: timeout", these lines will help.
+    connectTimeout = Duration.ofMinutes(3)
+    clientTimeout = Duration.ofMinutes(3)
 }
 
