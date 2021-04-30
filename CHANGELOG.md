@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+
+## [v0.2.3] - 2021-04-30
+
 * Change maven group ID to `uk.gov.gchq.stroom.testdata`, move to maven central.
 
 
