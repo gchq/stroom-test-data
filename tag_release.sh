@@ -45,6 +45,14 @@ TAG_RELEASE_CONFIG_FILENAME='tag_release_config.env'
 # ----------------------------------------------------------
 # Git tags should match this regex to be a release tag
 RELEASE_VERSION_REGEX='^v[0-9]+\.[0-9]+.*$'
+# Matches any level 2 heading
+HEADING_REGEX='^## \[(.*)\]'
+# Matches the [Unreleased] heading
+UNRELEASED_HEADING_REGEX='^## \[Unreleased\]'
+# Matches are release [v......] heading
+UNRELEASED_HEADING_REGEX='^## \[Unreleased\]'
+# Matches an issue line [* ......]
+ISSUE_LINE_REGEX='^\* .*'
 # Finds version part but only in a '## [v1.2.3xxxxx]' heading
 RELEASE_VERSION_IN_HEADING_REGEX="(?<=## \[)v[0-9]+\.[0-9]+[^\]]*(?=\])" 
 # Example git tag for use in help text
@@ -114,6 +122,13 @@ do_tagging() {
 }
 
 do_release() {
+  local last_release_tag
+  last_release_tag="$( \
+    grep -Po "(?<=## \[)v[^\]]+(?=\])" CHANGELOG.md \
+    | head -1)"
+
+  echo "Previous release version: ${last_release_tag}"
+
   local commit_msg
   # delete all lines up to and including the desired version header
   # then output all lines until quitting when you hit the next 
@@ -268,6 +283,50 @@ determine_version_to_release() {
   fi
 }
 
+prepare_for_release() {
+  local prev_release_version="$1"; shift
+  local next_release_version=""
+
+  echo -e "${GREEN}There are unrelased changes in the changelog.\nThe changelog" \
+    "needs to be modified for a new release version.\nThe unreleased" \
+    "changes are:\n${NC}"
+
+  for line in "${unreleased_changes[@]}"; do
+    echo -e "  ${YELLOW}${line}${NC}"
+  done
+
+  echo -e "\n${GREEN}The last release version was:" \
+    "${BLUE}${prev_release_version}${NC}"
+
+  if [[ "${prev_release_version}" =~ \.([0-9]+)$ ]]; then
+    local prev_patch_part="${BASH_REMATCH[1]}"
+    local next_patch_part=$((prev_patch_part + 1))
+
+    next_release_version_guess="$( echo "${prev_release_version}" \
+      | sed -E "s/\.[0-9]+$/\.${next_patch_part}/" )"
+
+    echo "  next_release_version_guess: ${next_release_version_guess}"
+  fi
+
+  local is_valid_version_str=false
+  while [[ "${is_valid_version_str}" = false ]]; do
+    read \
+      -e \
+      -p "$(echo -e "${GREEN}Enter the version to release:${NC}")"$'\n' \
+      -i "${next_release_version_guess}" next_release_version
+
+    if [[ "${next_release_version}" =~ ${RELEASE_VERSION_REGEX} ]]; then
+      is_valid_version_str=true
+    else
+      error "Version [${BLUE}${next_release_version}${GREEN}] is not valid against" \
+        "the pattern [${BLUE}${RELEASE_VERSION_REGEX}${GREEN}]"
+    fi
+  done
+
+  echo -e "${GREEN}Preparing to release version ${next_release_version}${NC}"
+  echo "  next_release_version: ${next_release_version}"
+}
+
 main() {
   setup_echo_colours
   echo
@@ -297,8 +356,74 @@ main() {
 
   validate_changelog_exists
 
-  local version
+  #local is_prepare_mode=false
 
+  # determine last release version
+  # prompt for new version (maybe guestimate new version from last)
+  # Add heading for new release
+  # Add compare link for last release to new
+  # Modify compare link for latest release to unreleased
+
+  # Unreleased issue regex '(?<=## \[Unreleased\]\n\n)^\* Issue'
+
+  local are_unreleased_issues=false
+  local first_version_found=""
+  local seen_unreleased_heading=false
+  local unreleased_changes=()
+
+  # Read each line of the changelog to find out what state it is in
+  while read -r line; do
+    #echo "line: ${line}"
+
+    if [[ "${line}" =~ ${UNRELEASED_HEADING_REGEX} ]]; then
+      echo "line: ${line}"
+      seen_unreleased_heading=true
+    fi
+
+    if [[ "${seen_unreleased_heading}" = true \
+      && -z "${first_version_found}" \
+      && "${line}" =~ ${ISSUE_LINE_REGEX} ]]; then
+      echo "line: ${line}"
+      are_unreleased_issues=true
+      unreleased_changes+=( "${line}" )
+    fi
+
+    if [[ "${seen_unreleased_heading}" = true \
+      && ! "${line}" =~ ${UNRELEASED_HEADING_REGEX}
+      && "${line}" =~ ${HEADING_REGEX} \
+      && -z "${first_version_found}" ]]; then
+      echo "line: ${line}"
+
+      # HEADING_REGEX captures the content of the heading as the first group
+      first_version_found="${BASH_REMATCH[1]}"
+      # Got all we need so break out now
+      break
+    fi
+
+  done < "${changelog_file}"
+
+  echo
+  echo "are_unreleased_issues: ${are_unreleased_issues}"
+  echo "first_version_found: ${first_version_found}"
+  echo "seen_unreleased_heading: ${seen_unreleased_heading}"
+
+  if [[ "${are_unreleased_issues}" = true ]]; then
+    # Need to prepare the CHANGELOG for release
+
+    prepare_for_release "${first_version_found}"
+  else
+   : 
+
+  fi
+
+  exit
+
+  #if [ "${1}" = "prepare" ]; then
+    #is_prepare_mode=true
+    #shift
+  #fi
+
+  local version
   if [ $# -ne 1 ]; then
     determine_version_to_release
   fi
