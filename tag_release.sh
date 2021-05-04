@@ -49,6 +49,8 @@ RELEASE_VERSION_REGEX='^v[0-9]+\.[0-9]+.*$'
 HEADING_REGEX='^## \[(.*)\]'
 # Matches the [Unreleased] heading
 UNRELEASED_HEADING_REGEX='^## \[Unreleased\]'
+# Matches the [Unreleased]: link
+UNRELEASED_LINK_REGEX='^\[Unreleased\]:'
 # Matches an issue line [* ......]
 ISSUE_LINE_REGEX='^\* .*'
 # Finds version part but only in a '## [v1.2.3xxxxx]' heading
@@ -63,8 +65,6 @@ CHANGELOG_FILENAME='CHANGELOG.md'
 GITHUB_NAMESPACE=
 # The name of the git repository on github, should be set in tag_release_config.env
 GITHUB_REPO=
-# The URL format for a github compare request
-COMPARE_URL_EXAMPLE="https://github.com/${GITHUB_NAMESPACE}/${GITHUB_REPO}/compare/${PREVIOUS_TAG_EXAMPLE}...${TAG_EXAMPLE}"
 # ----------------------------------------------------------
 
 setup_echo_colours() {
@@ -109,10 +109,11 @@ show_usage() {
 
 do_tagging() {
   echo
-  echo -e "${GREEN}Tagging the current commit${NC}"
+  echo -e "${GREEN}Creating annotated tag [${BLUE}${version}${GREEN}]" \
+    "for the current commit${NC}"
   echo -e "${commit_msg}" | git tag -a --file - "${version}"
 
-  echo -e "${GREEN}Pushing the new tag${NC}"
+  echo -e "${GREEN}Pushing the new tag [${BLUE}${version}${GREEN}] to origin${NC}"
   git push origin "${version}"
 
   echo -e "${GREEN}Done.${NC}"
@@ -281,17 +282,77 @@ determine_version_to_release() {
   fi
 }
 
-modify_changelog() {
+commit_changelog() {
   local next_release_version="$1"; shift
 
+  local changed_file_count
+  changed_file_count="$(git status --porcelain | wc -l)"
+
+  if [ "${changed_file_count}" -gt 1 ]; then
+    echo 
+    error_exit "Expecting only ${BLUE}${changelog_file}${GREEN} to have" \
+      "changed in git status"
+  fi
+
+  echo -e "${GREEN}The following changes have been made to the changelog:${NC}"
+
+  echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+  git --no-pager diff 
+  echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+
+  read -rsp $'If these are correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
+
+  if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
+    echo -e "${RED}Aborted${NC}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}Committing and pushing changelog file" \
+    "[${BLUE}${changelog_file}${GREEN}] ${NC}"
+
+  #git add "${changelog_file}"
+
+  #git commit -m "Update CHANGELOG for release ${next_release_version}"
+
+  #git push
+
+
+}
+
+modify_changelog() {
+  local prev_release_version="$1"; shift
+  local next_release_version="$1"; shift
+
+  echo -e "${GREEN}Adding version [${BLUE}${next_release_version}${GREEN}]" \
+    "to the changelog file [${BLUE}${changelog_file}${GREEN}] ${NC}"
+
   local new_heading
-  new_heading="[${next_release_version}] $(date +%Y-%m-%dA)"
+  new_heading="## [${next_release_version}] $(date +%Y-%m-%d)"
 
   # Add the new release heading after the [Unreleeased] heading
-  # plus some new lines
-  sed -i'' "/${UNRELEASED_HEADING_REGEX}/a \\n\n${new_heading}"
+  # plus some new lines \\\n\n seems to provide two new lines
+  sed \
+    -i'' \
+    "/${UNRELEASED_HEADING_REGEX}/a \\\n\n${new_heading}" \
+    "${changelog_file}"
 
+  local compare_regex="^(\[Unreleased\]: https:\/\/github\.com\/${GITHUB_NAMESPACE}\/${GITHUB_REPO}\/compare\/)(.*)\.{3}(.*)$"
 
+  # Change the from version in the [Unreleased] link
+  sed \
+    -E \
+    -i'' \
+    "s/${compare_regex}/\1${next_release_version}...\3/" \
+    "${changelog_file}"
+
+  # Add in the compare link for prev release to next release
+  new_link_line="[${next_release_version}]: ${GITHUB_URL_BASE}/compare/${prev_release_version}...${next_release_version}"
+  sed \
+    -i'' \
+    "/${UNRELEASED_LINK_REGEX}/a ${new_link_line}" \
+    "${changelog_file}"
+
+  commit_changelog "${next_release_version}"
 }
 
 prepare_for_release() {
@@ -307,7 +368,7 @@ prepare_for_release() {
   echo -e "\n${GREEN}The changelog needs to be modified for a new release" \
     "version.${NC}"
 
-  echo -e "\n${GREEN}The last release version was:" \
+  echo -e "\n${GREEN}The last release tag/version was:" \
     "${BLUE}${prev_release_version}${NC}"
 
   if [[ "${prev_release_version}" =~ \.([0-9]+)$ ]]; then
@@ -324,7 +385,7 @@ prepare_for_release() {
   while [[ "${is_valid_version_str}" = false ]]; do
     read \
       -e \
-      -p "$(echo -e "${GREEN}Enter the version to release:${NC}")"$'\n' \
+      -p "$(echo -e "${GREEN}Enter the tag/version for this release:${NC}")"$'\n' \
       -i "${next_release_version_guess}" next_release_version
 
     if [[ "${next_release_version}" =~ ${RELEASE_VERSION_REGEX} ]]; then
@@ -337,6 +398,10 @@ prepare_for_release() {
 
   echo -e "${GREEN}Preparing to release version ${next_release_version}${NC}"
   echo "  next_release_version: ${next_release_version}"
+
+  modify_changelog "${prev_release_version}" "${next_release_version}"
+
+  version="${next_release_version}"
 }
 
 main() {
@@ -350,6 +415,13 @@ main() {
 
   # Source any repo specific config
   source "${tag_release_config_file}"
+
+  # Need to define these here as they depend on the config file having
+  # been sourced.
+  # The URL format for a github compare request
+  GITHUB_URL_BASE="https://github.com/${GITHUB_NAMESPACE}/${GITHUB_REPO}"
+  COMPARE_URL_EXAMPLE="${GITHUB_URL_BASE}/compare/${PREVIOUS_TAG_EXAMPLE}...${TAG_EXAMPLE}"
+
   local changelog_file="${repo_root}/${CHANGELOG_FILENAME}"
 
   if [ ! -f "${tag_release_config_file}" ]; then
@@ -388,14 +460,14 @@ main() {
     #echo "line: ${line}"
 
     if [[ "${line}" =~ ${UNRELEASED_HEADING_REGEX} ]]; then
-      echo "line: ${line}"
+      #echo "line: ${line}"
       seen_unreleased_heading=true
     fi
 
     if [[ "${seen_unreleased_heading}" = true \
       && -z "${first_version_found}" \
       && "${line}" =~ ${ISSUE_LINE_REGEX} ]]; then
-      echo "line: ${line}"
+      #echo "line: ${line}"
       are_unreleased_issues=true
       unreleased_changes+=( "${line}" )
     fi
@@ -404,7 +476,7 @@ main() {
       && ! "${line}" =~ ${UNRELEASED_HEADING_REGEX}
       && "${line}" =~ ${HEADING_REGEX} \
       && -z "${first_version_found}" ]]; then
-      echo "line: ${line}"
+      #echo "line: ${line}"
 
       # HEADING_REGEX captures the content of the heading as the first group
       first_version_found="${BASH_REMATCH[1]}"
