@@ -49,8 +49,6 @@ RELEASE_VERSION_REGEX='^v[0-9]+\.[0-9]+.*$'
 HEADING_REGEX='^## \[(.*)\]'
 # Matches the [Unreleased] heading
 UNRELEASED_HEADING_REGEX='^## \[Unreleased\]'
-# Matches are release [v......] heading
-UNRELEASED_HEADING_REGEX='^## \[Unreleased\]'
 # Matches an issue line [* ......]
 ISSUE_LINE_REGEX='^\* .*'
 # Finds version part but only in a '## [v1.2.3xxxxx]' heading
@@ -283,17 +281,31 @@ determine_version_to_release() {
   fi
 }
 
+modify_changelog() {
+  local next_release_version="$1"; shift
+
+  local new_heading
+  new_heading="[${next_release_version}] $(date +%Y-%m-%dA)"
+
+  # Add the new release heading after the [Unreleeased] heading
+  # plus some new lines
+  sed -i'' "/${UNRELEASED_HEADING_REGEX}/a \\n\n${new_heading}"
+
+
+}
+
 prepare_for_release() {
   local prev_release_version="$1"; shift
   local next_release_version=""
 
-  echo -e "${GREEN}There are unrelased changes in the changelog.\nThe changelog" \
-    "needs to be modified for a new release version.\nThe unreleased" \
-    "changes are:\n${NC}"
+  echo -e "${GREEN}There are unrelased changes in the changelog:\n"
 
   for line in "${unreleased_changes[@]}"; do
     echo -e "  ${YELLOW}${line}${NC}"
   done
+
+  echo -e "\n${GREEN}The changelog needs to be modified for a new release" \
+    "version.${NC}"
 
   echo -e "\n${GREEN}The last release version was:" \
     "${BLUE}${prev_release_version}${NC}"
