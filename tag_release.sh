@@ -296,9 +296,14 @@ commit_changelog() {
 
   echo -e "${GREEN}The following changes have been made to the changelog:${NC}"
 
+  echo
   echo -e "${DGREY}------------------------------------------------------------------------${NC}"
-  git --no-pager diff 
+  # Remove the header bits from the diff so we just have the content
+  # (delete everything that is not from the matched line to the end)
+  git --no-pager diff \
+    | sed '/@@/,$!d'
   echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+  echo
 
   read -rsp $'If these are correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
 
