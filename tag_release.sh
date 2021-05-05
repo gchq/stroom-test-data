@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
 
+# **********************************************************************
+# Copyright 2021 Crown Copyright
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# **********************************************************************
+
+
 # This script is for tagging a git repository for the purpose of driving a
 # separate release process from that tagged commit. It also updates the 
 # changelog with details of the release.
@@ -566,6 +583,87 @@ parse_changelog() {
   debug "seen_unreleased_heading: ${seen_unreleased_heading}"
 }
 
+create_config_file() {
+  info "Config file ${BLUE}${tag_release_config_file}${GREEN} does not" \
+    "exist so it will be created"
+
+  # 'EOF' quoted to avoid any expansion/substitution
+  cat <<'EOF' > "${tag_release_config_file}"
+# This file provides the repository specific config for the
+# tag_release.sh script
+
+# shellcheck disable=2034
+{
+  # The namespace/usser on github, i.e. github.com/<namespace>
+  GITHUB_NAMESPACE='gchq'
+  # The name of the git repository on github
+  GITHUB_REPO='stroom-test-data'
+
+  # Git tags should match this regex to be a release tag
+  #RELEASE_VERSION_REGEX='^v[0-9]+\.[0-9]+.*$'
+
+  # Finds version part but only in a '## [v1.2.3xxxxx]' heading
+  #RELEASE_VERSION_IN_HEADING_REGEX="(?<=## \[)v[0-9]+\.[0-9]+[^\]]*(?=\])" 
+
+  # Example git tag for use in help text
+  #TAG_EXAMPLE='v6.0-beta.19'
+
+  # Example of a tag that is older than TAG_EXAMPLE, for use in help text
+  #PREVIOUS_TAG_EXAMPLE="${TAG_EXAMPLE//9/8}"
+
+  # The location of the change log relative to the repo root
+  #CHANGELOG_FILENAME='CHANGELOG.md'
+
+  # If you want to run any validation that is specific to this repo then uncomment
+  # this function and implement some validation
+  #apply_custom_validation() {
+    #echo -e "${GREEN}Applying custom validation${NC}"
+    #echo
+  #}
+
+}
+EOF
+
+  # 'origin https://github.com/gchq/stroom.git (fetch)' => 'gchq stroom'
+  # read the space delimited values into an array so we can split them
+  local namespace_and_repo=()
+  namespace_and_repo=(
+    $(git remote -v \
+      | grep "(fetch)" \
+      | sed -r 's#.*[/:]([^/]+)/(.*)\.git \(fetch\)#\1 \2#'))
+
+  debug "namespace_and_repo: ${namespace_and_repo[*]}"
+
+  local git_namespace=""
+  local git_repo=""
+
+  if [[ "${#namespace_and_repo[@]}" -ne 2 ]]; then
+    warn "Unable to parse git namespace and repo from the remote URL." \
+      "\nYou will have to see them manually in ${BLUE}${tag_release_config_file}"
+  else
+    git_namespace="${namespace_and_repo[0]}"
+    git_repo="${namespace_and_repo[1]}"
+    info "Customising config file ${BLUE}${tag_release_config_file}"
+
+    info "  Setting ${YELLOW}GITHUB_NAMESPACE='${git_namespace}'"
+    sed \
+      -i'' \
+      -r \
+      "s/(GITHUB_NAMESPACE=).*/\1'${git_namespace}'/" \
+      "${tag_release_config_file}"
+
+    info "  Setting ${YELLOW}GITHUB_REPO='${git_repo}'"
+    sed \
+      -i'' \
+      -r \
+      "s/(GITHUB_REPO=).*/\1'${git_repo}'/" \
+      "${tag_release_config_file}"
+  fi
+
+  info "Confirm the values in the generated config file are appropriate, then" \
+    "commit them to git and then finally re-run this script."
+}
+
 main() {
   setup_echo_colours
 
@@ -575,9 +673,13 @@ main() {
   pushd "${repo_root}" > /dev/null
 
   local tag_release_config_file="${repo_root}/${TAG_RELEASE_CONFIG_FILENAME}"
-
-  # Source any repo specific config
-  source "${tag_release_config_file}"
+  if [[ -f "${tag_release_config_file}" ]]; then
+    # Source any repo specific config
+    source "${tag_release_config_file}"
+  else
+    create_config_file
+    exit 0
+  fi
 
   # Need to define these here as they depend on the config file having
   # been sourced.
