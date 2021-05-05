@@ -1,45 +1,76 @@
 #!/usr/bin/env bash
 
-# This script creates and pushes a git annotated tag with a commit message 
-# taken from the appropriate versioned section of the changelog
-# The changelog should look something like this:
+# This script is for tagging a git repository for the purpose of driving a
+# separate release process from that tagged commit. It also updates the 
+# changelog with details of the release.
+#
+# Assuming there are unreleased changes in the changelog, there are no
+# untracked/staged files and the last release was v1.0.0 then the following
+# will happen when run with no arguments:
+#
+# 1. Prompt the user for the release version, v1.0.1 will be suggested.
+# 2. Validate the provided version against a regex and against existing tags.
+# 3. Add a heading to the changlog for the version and add/modify the 
+#    compare links.
+# 4. git add, commit, push the changelog changes.
+# 5. Prompt the user for conformation of the releasing tagging.
+# 6. Create an annotated tag and push it to the remote.
+#
+# The script can be configured to some degree by means of the 
+# tag_release_config.env file.
+#
+# The script is interactive and intended to be run by a human that can
+# make decisions about what the release version number is.
+#
+# Usage: ./tag_release.sh [version]
+# version: Only used when you want to state up front what the version will be.
+#          If omitted the user will be prompted for the version with a
+#          suggestion based on the last released version. 
+#
+# The changelog (CHANGELOG.md) should look something like this:
 
-# -----------------------------------------------------
-# ## [v6.0-beta.29] - 2019-02-21
-# 
-# * Change Travis build to generate sha256 hashes for release zip/jars.
-# 
-# * Uplift the visualisations content pack to v3.2.1
-# 
-# * Issue **#1100** : Fix incorrect sort direction being sent to visualisations.
-# 
-# 
-# ## [v6.0-beta.28] - 2019-02-20
-# 
-# * Add guard against race condition
-# -----------------------------------------------------
+#   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   |## [Unreleased]
+#   |
+#   |* Fix typo
+#   |
+#   |
+#   |## [v6.0-beta.29] - 2019-02-21
+#   |
+#   |* Change Travis build to generate sha256 hashes for release zip/jars.
+#   |
+#   |* Uplift the visualisations content pack to v3.2.1
+#   |
+#   |* Issue **#1100** : Fix incorrect sort direction being sent to visualisations.
+#   |
+#   |
+#   |## [v6.0-beta.28] - 2019-02-20
+#   |
+#   |* Add guard against race condition
+#   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # And have a section at the bottom like this:
 
-# -----------------------------------------------------
-# [Unreleased]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.28...6.0
-# [v6.0-beta.28]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.27...v6.0-beta.28
-# [v6.0-beta.27]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.26...v6.0-beta.27
-# -----------------------------------------------------
+#   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   |[Unreleased]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.28...master
+#   |[v6.0-beta.28]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.27...v6.0-beta.28
+#   |[v6.0-beta.27]: https://github.com/<namespace>/<repo>/compare/v6.0-beta.26...v6.0-beta.27
+#   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+# The format of the headings in compare links are critical to the parsing of
+# the file.
 
 # CHANGELOG for tag_release.sh
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # 2019-10-04 - Check if determined version has been tagged
 # 2019-10-04 - Refactor to use tag_release_config.env
+# 2021-05-05 - Add changelog updating
 
-
-set -e
+set -euo pipefail
 
 # File containing the configuration values for this script
 TAG_RELEASE_CONFIG_FILENAME='tag_release_config.env'
-
 
 # Configure the following for your github repository
 # ----------------------------------------------------------
@@ -91,6 +122,18 @@ error_exit() {
   exit 1
 }
 
+debug() {
+  # To run with debug logging do;
+  # IS_DEBUG_ENABLED=true ./tag_release.sh
+  if [ "${IS_DEBUG_ENABLED:-false}" = true ]; then
+    echo -e "${DGREY}DEBUG: $*${NC}"
+  fi
+}
+
+info() {
+  echo -e "${GREEN}$*${NC}"
+}
+
 show_usage() {
   {
     error "Missing version argument${NC}"
@@ -126,7 +169,7 @@ do_release() {
     grep -Po "(?<=## \[)v[^\]]+(?=\])" CHANGELOG.md \
     | head -1)"
 
-  echo "Previous release version: ${last_release_tag}"
+  debug "Previous release version: ${last_release_tag}"
 
   local commit_msg
   # delete all lines up to and including the desired version header
@@ -141,7 +184,7 @@ do_release() {
   # Remove any repeated blank lines with cat -s
   commit_msg="$(echo -e "${commit_msg}" | cat -s)"
 
-  echo -e "${GREEN}You are about to create the git tag ${BLUE}${version}${GREEN}" \
+  echo -e "${GREEN}\nYou are about to create the git tag ${BLUE}${version}${GREEN}" \
     "with the following commit message.${NC}"
   echo -e "${GREEN}If there isn't anything between these lines then you should" \
     "probably add some entries to the ${BLUE}${CHANGELOG_FILENAME}${GREEN} first.${NC}"
@@ -163,8 +206,16 @@ do_release() {
 
 validate_version_string() {
   if [[ ! "${version}" =~ ${RELEASE_VERSION_REGEX} ]]; then
-    error_exit "Version [${BLUE}${version}${GREEN}] does not match the release" \
-      "version regex ${BLUE}${RELEASE_VERSION_REGEX}${NC}"
+      local msgs=("Version [${BLUE}${version}${GREEN}] does not match the release"
+        "version regex ${BLUE}${RELEASE_VERSION_REGEX}${NC}")
+    if [[ $# -eq 1 && "${1}" = false ]]; then
+      error "${msgs[@]}"
+      return 1
+    else
+      error_exit "${msgs[@]}"
+    fi
+  else
+    return 0
   fi
 }
 
@@ -172,6 +223,13 @@ validate_changelog_exists() {
   if [ ! -f "${changelog_file}" ]; then
     error_exit "The file ${BLUE}${changelog_file}${GREEN} does not exist in the" \
       "current directory.${NC}"
+  fi
+}
+
+validate_unreleased_heading_in_changelog() {
+  if ! grep -q "${UNRELEASED_HEADING_REGEX}" "${changelog_file}"; then
+    error_exit "The changelog is missing the" \
+      "following heading.\n${YELLOW}## [Unreleased]${NC}"
   fi
 }
 
@@ -184,8 +242,16 @@ validate_in_git_repo() {
 
 validate_for_duplicate_tag() {
   if git tag | grep -q "^${version}$"; then
-    error_exit "This repository has already been tagged with" \
-      "[${BLUE}${version}${GREEN}].${NC}"
+    local msgs=("This repository has already been tagged with"
+      "[${BLUE}${version}${GREEN}].${NC}")
+    if [[ $# -eq 1 && "${1}" = false ]]; then
+      error "${msgs[@]}"
+      return 1
+    else
+      error_exit "${msgs[@]}"
+    fi
+  else
+    return 0
   fi
 }
 
@@ -230,12 +296,10 @@ apply_custom_validation() {
 do_validation() {
   apply_custom_validation
   validate_version_string
-  validate_in_git_repo
   validate_for_duplicate_tag
   validate_version_in_changelog
   validate_release_date
   validate_compare_link_exists
-  validate_for_uncommitted_work
 }
 
 determine_version_to_release() {
@@ -256,30 +320,47 @@ determine_version_to_release() {
     determined_version=
   fi
 
-  if [ -n "${determined_version}" ]; then
-    # Found a version so seek confirmation
 
-    # Extract the date from the version heading
-    local release_date
-    release_date="$( \
-      grep -oP \
-        "(?<=##\s\[${determined_version}\]\s-\s)\d{4}-\d{2}-\d{2}" \
-        "${changelog_file}"
-    )"
-
-    echo -e "${GREEN}Determined release to be" \
-      "[${BLUE}${determined_version}${GREEN}] with date" \
-      "[${BLUE}${release_date}${GREEN}]${NC}"
-    echo
-
-    read -rsp $'If this is correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
-
-    if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
-      show_usage
-      exit 1
-    fi
-    echo
+  if [ -z "${determined_version}" ]; then
+    echo -e "${GREEN}Unable to determine the version to release from" \
+      "from the changelog.${NC}"
   fi
+
+  prompt_user_for_version "${determined_version}"
+
+  #if [ -n "${determined_version}" ]; then
+    ## Found a version so seek confirmation
+
+    ## Extract the date from the version heading
+    #local date_regex="(?<=##\s\[${determined_version}\]\s-\s)\d{4}-\d{2}-\d{2}"
+    #if ! grep -q -P "${date_regex}" "${changelog_file}"; then
+      #error_exit "${GREEN}Unable to parse the date from the heading for version" \
+        #"[${BLUE}${determined_version}${GREEN}]. The heading should look like:" \
+        #"\n${YELLOW}## [v7.0-beta.111] - YYYY-MM-DD${NC}"
+    #fi
+    #local release_date
+    #release_date="$( \
+      #grep -oP \
+        #"${date_regex}" \
+        #"${changelog_file}"
+    #)"
+
+    #echo -e "${GREEN}Determined release to be" \
+      #"[${BLUE}${determined_version}${GREEN}] with date" \
+      #"[${BLUE}${release_date}${GREEN}]${NC}"
+    #echo
+
+    #read -rsp $'If this is correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
+
+    #if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
+      #show_usage
+      #exit 1
+    #fi
+    #echo
+  #else
+    #error_exit "${GREEN}Unable to determine the version to release from" \
+      #"from the changelog. Is it structured correctly?${NC}"
+  #fi
 }
 
 commit_changelog() {
@@ -290,38 +371,44 @@ commit_changelog() {
 
   if [ "${changed_file_count}" -gt 1 ]; then
     echo 
-    error_exit "Expecting only ${BLUE}${changelog_file}${GREEN} to have" \
-      "changed in git status"
-  fi
+    error "Expecting only ${BLUE}${CHANGELOG_FILENAME}${GREEN} to have" \
+      "changed in git status.\nThe following uncommitted changes exist:"
 
-  echo -e "${GREEN}The following changes have been made to the changelog:${NC}"
-
-  echo
-  echo -e "${DGREY}------------------------------------------------------------------------${NC}"
-  # Remove the header bits from the diff so we just have the content
-  # (delete everything that is not from the matched line to the end)
-  git --no-pager diff \
-    | sed '/@@/,$!d'
-  echo -e "${DGREY}------------------------------------------------------------------------${NC}"
-  echo
-
-  read -rsp $'If these are correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
-
-  if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
-    echo -e "${RED}Aborted${NC}"
+    echo 
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+    git status --porcelain 
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
     exit 1
   fi
 
-  echo -e "${GREEN}Committing and pushing changelog file" \
-    "[${BLUE}${changelog_file}${GREEN}] ${NC}"
+  if ! git diff --quiet; then
+    echo -e "${GREEN}The following changes have been made to the changelog:${NC}"
 
-  #git add "${changelog_file}"
+    echo
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+    # Remove the header bits from the diff so we just have the content
+    # (delete everything that is not from the matched line to the end)
+    git --no-pager diff --color=always "${changelog_file}" \
+      | sed '/@@/,$!d'
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+    echo
 
-  #git commit -m "Update CHANGELOG for release ${next_release_version}"
+    read -rsp $'If these are correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
 
-  #git push
+    if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
+      echo -e "${RED}Aborted${NC}"
+      exit 1
+    fi
+  fi
 
+  echo -e "${GREEN}Adding ${BLUE}${CHANGELOG_FILENAME}${GREEN} to the git index.${NC}"
+  git add "${changelog_file}"
 
+  echo -e "${GREEN}Committing the staged changes${NC}"
+  git commit -m "Update CHANGELOG for release ${next_release_version}"
+
+  echo -e "${GREEN}Pushing the changelog changes to the remote repository${NC}"
+  git push
 }
 
 modify_changelog() {
@@ -329,12 +416,12 @@ modify_changelog() {
   local next_release_version="$1"; shift
 
   echo -e "${GREEN}Adding version [${BLUE}${next_release_version}${GREEN}]" \
-    "to the changelog file [${BLUE}${changelog_file}${GREEN}] ${NC}"
+    "to the changelog file [${BLUE}${CHANGELOG_FILENAME}${GREEN}] ${NC}"
 
   local new_heading
-  new_heading="## [${next_release_version}] $(date +%Y-%m-%d)"
+  new_heading="## [${next_release_version}] - ${curr_date}"
 
-  # Add the new release heading after the [Unreleeased] heading
+  # Add the new release heading after the [Unreleased] heading
   # plus some new lines \\\n\n seems to provide two new lines
   sed \
     -i'' \
@@ -343,26 +430,58 @@ modify_changelog() {
 
   local compare_regex="^(\[Unreleased\]: https:\/\/github\.com\/${GITHUB_NAMESPACE}\/${GITHUB_REPO}\/compare\/)(.*)\.{3}(.*)$"
 
-  # Change the from version in the [Unreleased] link
-  sed \
-    -E \
-    -i'' \
-    "s/${compare_regex}/\1${next_release_version}...\3/" \
-    "${changelog_file}"
+  if grep -q "^\[Unreleased\]:" "${changelog_file}" ; then
+    # There is an unreleased link so modify it
+    # Change the from version in the [Unreleased] link
+    debug "Modifying unreleased link"
+    sed \
+      -E \
+      -i'' \
+      "s/${compare_regex}/\1${next_release_version}...\3/" \
+      "${changelog_file}"
+  else
+    # No link so add one to the end
+    debug "Appending unreleased link"
+    echo -e "\n[Unreleased]: ${GITHUB_URL_BASE}/compare/${next_release_version}...master" \
+      >> "${changelog_file}"
+  fi
 
-  # Add in the compare link for prev release to next release
-  new_link_line="[${next_release_version}]: ${GITHUB_URL_BASE}/compare/${prev_release_version}...${next_release_version}"
-  sed \
-    -i'' \
-    "/${UNRELEASED_LINK_REGEX}/a ${new_link_line}" \
-    "${changelog_file}"
+  if [ -n "${prev_release_version}" ]; then
+    # We have a prev release to compare to so add in the compare link for 
+    # prev release to next release
+    new_link_line="[${next_release_version}]: ${GITHUB_URL_BASE}/compare/${prev_release_version}...${next_release_version}"
+    debug "Appending compare link"
+    sed \
+      -i'' \
+      "/${UNRELEASED_LINK_REGEX}/a ${new_link_line}" \
+      "${changelog_file}"
+  fi
 
   commit_changelog "${next_release_version}"
 }
 
-prepare_for_release() {
+prompt_user_for_version() {
+  local suggested_version="$1"; shift
+  
+  # Ask the user what version tag they want and validate what
+  # they provide
+  local is_valid_version_str=false
+  while [[ "${is_valid_version_str}" = false ]]; do
+    read \
+      -e \
+      -p "$(echo -e "${GREEN}Enter the tag/version for this release:${NC}")"$'\n' \
+      -i "${suggested_version}" version
+
+    if validate_version_string false && validate_for_duplicate_tag false; then
+      is_valid_version_str=true
+    fi
+  done
+}
+
+prepare_changelog_for_release() {
   local prev_release_version="$1"; shift
   local next_release_version=""
+  local next_release_version_guess=""
 
   echo -e "${GREEN}There are unrelased changes in the changelog:\n"
 
@@ -373,40 +492,85 @@ prepare_for_release() {
   echo -e "\n${GREEN}The changelog needs to be modified for a new release" \
     "version.${NC}"
 
-  echo -e "\n${GREEN}The last release tag/version was:" \
-    "${BLUE}${prev_release_version}${NC}"
+  if [ -n "${prev_release_version}" ]; then
+    echo -e "\n${GREEN}The last release tag/version was:" \
+      "${BLUE}${prev_release_version}${NC}"
 
-  if [[ "${prev_release_version}" =~ \.([0-9]+)$ ]]; then
-    local prev_patch_part="${BASH_REMATCH[1]}"
-    local next_patch_part=$((prev_patch_part + 1))
 
-    next_release_version_guess="$( echo "${prev_release_version}" \
-      | sed -E "s/\.[0-9]+$/\.${next_patch_part}/" )"
+    if [[ "${prev_release_version}" =~ \.([0-9]+)$ ]]; then
+      local prev_patch_part="${BASH_REMATCH[1]}"
+      local next_patch_part=$((prev_patch_part + 1))
 
-    echo "  next_release_version_guess: ${next_release_version_guess}"
+      next_release_version_guess="$( echo "${prev_release_version}" \
+        | sed -E "s/\.[0-9]+$/\.${next_patch_part}/" )"
+
+      debug "next_release_version_guess: ${next_release_version_guess}"
+    fi
   fi
 
-  local is_valid_version_str=false
-  while [[ "${is_valid_version_str}" = false ]]; do
-    read \
-      -e \
-      -p "$(echo -e "${GREEN}Enter the tag/version for this release:${NC}")"$'\n' \
-      -i "${next_release_version_guess}" next_release_version
 
-    if [[ "${next_release_version}" =~ ${RELEASE_VERSION_REGEX} ]]; then
-      is_valid_version_str=true
-    else
-      error "Version [${BLUE}${next_release_version}${GREEN}] is not valid against" \
-        "the pattern [${BLUE}${RELEASE_VERSION_REGEX}${GREEN}]"
+  if [ -n "${requested_version}" ]; then
+    # User gave us the version via the arg so no need to prompt
+    version="${requested_version}"
+    validate_version_string
+    validate_for_duplicate_tag
+  else
+    # Ask the user what version tag they want and validate what
+    # they provide
+    prompt_user_for_version "${next_release_version_guess}"
+    #local is_valid_version_str=false
+    #while [[ "${is_valid_version_str}" = false ]]; do
+      #read \
+        #-e \
+        #-p "$(echo -e "${GREEN}Enter the tag/version for this release:${NC}")"$'\n' \
+        #-i "${next_release_version_guess}" version
+
+      #if validate_version_string false && validate_for_duplicate_tag false; then
+        #is_valid_version_str=true
+      #fi
+    #done
+  fi
+
+  modify_changelog "${prev_release_version}" "${version}"
+}
+
+parse_changelog() {
+  local seen_unreleased_heading=false
+
+  # Read each line of the changelog to find out what state it is in
+  while read -r line; do
+    #echo "line: ${line}"
+
+    if [[ "${line}" =~ ${UNRELEASED_HEADING_REGEX} ]]; then
+      #echo "line: ${line}"
+      seen_unreleased_heading=true
     fi
-  done
 
-  echo -e "${GREEN}Preparing to release version ${next_release_version}${NC}"
-  echo "  next_release_version: ${next_release_version}"
+    if [[ "${seen_unreleased_heading}" = true \
+      && -z "${most_recent_release_version}" \
+      && "${line}" =~ ${ISSUE_LINE_REGEX} ]]; then
+      #echo "line: ${line}"
+      are_unreleased_issues=true
+      unreleased_changes+=( "${line}" )
+    fi
 
-  modify_changelog "${prev_release_version}" "${next_release_version}"
+    if [[ "${seen_unreleased_heading}" = true \
+      && ! "${line}" =~ ${UNRELEASED_HEADING_REGEX}
+      && "${line}" =~ ${HEADING_REGEX} \
+      && -z "${most_recent_release_version}" ]]; then
+      #echo "line: ${line}"
 
-  version="${next_release_version}"
+      # HEADING_REGEX captures the content of the heading as the first group
+      most_recent_release_version="${BASH_REMATCH[1]}"
+      # Got all we need so break out now
+      break
+    fi
+
+  done < "${changelog_file}"
+
+  debug "are_unreleased_issues: ${are_unreleased_issues}"
+  debug "most_recent_release_version: ${most_recent_release_version}"
+  debug "seen_unreleased_heading: ${seen_unreleased_heading}"
 }
 
 main() {
@@ -443,93 +607,40 @@ main() {
       "in ${BLUE}${tag_release_config_file}${NC}"
   fi
 
+  # Initial validation before we start modifying the changelog
   validate_changelog_exists
+  validate_unreleased_heading_in_changelog
+  validate_for_uncommitted_work
+  validate_in_git_repo
 
-  #local is_prepare_mode=false
-
-  # determine last release version
-  # prompt for new version (maybe guestimate new version from last)
-  # Add heading for new release
-  # Add compare link for last release to new
-  # Modify compare link for latest release to unreleased
-
-  # Unreleased issue regex '(?<=## \[Unreleased\]\n\n)^\* Issue'
-
-  local are_unreleased_issues=false
-  local first_version_found=""
-  local seen_unreleased_heading=false
+  local most_recent_release_version=""
+  local requested_version=""
+  local version=""
   local unreleased_changes=()
-
-  # Read each line of the changelog to find out what state it is in
-  while read -r line; do
-    #echo "line: ${line}"
-
-    if [[ "${line}" =~ ${UNRELEASED_HEADING_REGEX} ]]; then
-      #echo "line: ${line}"
-      seen_unreleased_heading=true
-    fi
-
-    if [[ "${seen_unreleased_heading}" = true \
-      && -z "${first_version_found}" \
-      && "${line}" =~ ${ISSUE_LINE_REGEX} ]]; then
-      #echo "line: ${line}"
-      are_unreleased_issues=true
-      unreleased_changes+=( "${line}" )
-    fi
-
-    if [[ "${seen_unreleased_heading}" = true \
-      && ! "${line}" =~ ${UNRELEASED_HEADING_REGEX}
-      && "${line}" =~ ${HEADING_REGEX} \
-      && -z "${first_version_found}" ]]; then
-      #echo "line: ${line}"
-
-      # HEADING_REGEX captures the content of the heading as the first group
-      first_version_found="${BASH_REMATCH[1]}"
-      # Got all we need so break out now
-      break
-    fi
-
-  done < "${changelog_file}"
-
-  echo
-  echo "are_unreleased_issues: ${are_unreleased_issues}"
-  echo "first_version_found: ${first_version_found}"
-  echo "seen_unreleased_heading: ${seen_unreleased_heading}"
-
-  if [[ "${are_unreleased_issues}" = true ]]; then
-    # Need to prepare the CHANGELOG for release
-
-    prepare_for_release "${first_version_found}"
-  else
-   : 
-
-  fi
-
-  exit
-
-  #if [ "${1}" = "prepare" ]; then
-    #is_prepare_mode=true
-    #shift
-  #fi
-
-  local version
-  if [ $# -ne 1 ]; then
-    determine_version_to_release
-  fi
-
-  if [ -n "${determined_version}" ]; then
-    version="${determined_version}"
-  else
-    if [ $# -ne 1 ]; then
-      # no arg supplied and we couldn't determine the version so bomb out
-      show_usage
-      exit 1
-    fi
-    version="$1"
-  fi
-
+  local are_unreleased_issues=false
   local curr_date
   curr_date="$(date +%Y-%m-%d)"
+
+  if [ $# -gt 0 ]; then
+    # version passed as argument
+    requested_version="$1"
+  fi
+
+  parse_changelog
+
+  if [[ "${are_unreleased_issues}" = true ]]; then
+    # Changelog contains changes that are unreleased so need to
+    # set up the new release heading in it.
+    prepare_changelog_for_release "${most_recent_release_version}"
+  else
+    echo -e "${GREEN}There are no unreleased changes in the changelog so" \
+      "assuming the changelog has been prepared for a release.${NC}"
+    if [[ -n "${requested_version}" ]]; then
+      version="${requested_version}"
+    else
+      determine_version_to_release
+    fi
+  fi
 
   do_validation
 
