@@ -96,6 +96,8 @@ CHANGELOG_FILENAME='CHANGELOG.md'
 GITHUB_NAMESPACE=
 # The name of the git repository on github, should be set in tag_release_config.env
 GITHUB_REPO=
+# The name of the git remote repo that the branch is tracking against.
+GIT_REMOTE_NAME='origin'
 # ----------------------------------------------------------
 
 setup_echo_colours() {
@@ -117,6 +119,11 @@ error() {
   echo
 }
 
+warn() {
+  echo -e "${YELLOW}WARNING${GREEN}: $*${NC}" >&2
+  echo
+}
+
 error_exit() {
   error "$@"
   exit 1
@@ -129,37 +136,37 @@ debug() {
     echo -e "${DGREY}DEBUG: $*${NC}"
   fi
 }
-
 info() {
+
   echo -e "${GREEN}$*${NC}"
 }
 
 show_usage() {
   {
     error "Missing version argument${NC}"
-    echo -e "${GREEN}Usage: ${BLUE}./tag_release.sh version${NC}"
-    echo -e "${GREEN}e.g:   ${BLUE}./tag_release.sh ${TAG_EXAMPLE}${NC}"
+    info "Usage: ${BLUE}./tag_release.sh version"
+    info "e.g:   ${BLUE}./tag_release.sh ${TAG_EXAMPLE}$"
     echo
-    echo -e "${GREEN}If the version argument is not supplied it will try to determine the version to release.${NC}"
+    info "If the version argument is not supplied it will try to determine the version to release."
     echo
-    echo -e "${GREEN}This script will extract the changes from the" \
-      "${BLUE}${changelog_file}${GREEN} file for the passed${NC}"
-    echo -e "${GREEN}version tag and create an annotated git commit with it." \
-      "The tag commit will be pushed${NC}"
-    echo -e "${GREEN}to the origin.${NC}"
+    info "This script will extract the changes from the" \
+      "${BLUE}${changelog_file}${GREEN} file for the passed"
+    info "version tag and create an annotated git commit with it." \
+      "The tag commit will be pushed"
+    info "to the origin."
   } >&2
 }
 
 do_tagging() {
   echo
-  echo -e "${GREEN}Creating annotated tag [${BLUE}${version}${GREEN}]" \
-    "for the current commit${NC}"
+  info "Creating annotated tag [${BLUE}${version}${GREEN}]" \
+    "for the current commit"
   echo -e "${commit_msg}" | git tag -a --file - "${version}"
 
-  echo -e "${GREEN}Pushing the new tag [${BLUE}${version}${GREEN}] to origin${NC}"
+  info "Pushing the new tag [${BLUE}${version}${GREEN}] to origin"
   git push origin "${version}"
 
-  echo -e "${GREEN}Done.${NC}"
+  info "Done"
   echo
 }
 
@@ -184,10 +191,10 @@ do_release() {
   # Remove any repeated blank lines with cat -s
   commit_msg="$(echo -e "${commit_msg}" | cat -s)"
 
-  echo -e "${GREEN}\nYou are about to create the git tag ${BLUE}${version}${GREEN}" \
-    "with the following commit message.${NC}"
-  echo -e "${GREEN}If there isn't anything between these lines then you should" \
-    "probably add some entries to the ${BLUE}${CHANGELOG_FILENAME}${GREEN} first.${NC}"
+  info "\nYou are about to create the git tag ${BLUE}${version}${GREEN}" \
+    "with the following commit message."
+  info "If there isn't anything between these lines then you should" \
+    "probably add some entries to the ${BLUE}${CHANGELOG_FILENAME}${GREEN} first."
   echo -e "${DGREY}------------------------------------------------------------------------${NC}"
   echo -e "${YELLOW}${commit_msg}${NC}"
   echo -e "${DGREY}------------------------------------------------------------------------${NC}"
@@ -198,7 +205,7 @@ do_release() {
     do_tagging
   else
     echo
-    echo -e "${GREEN}Exiting without tagging a commit${NC}"
+    info "Exiting without tagging a commit"
     echo
     exit 0
   fi
@@ -274,7 +281,7 @@ validate_compare_link_exists() {
   if ! grep -q "^\[${version}\]:" "${changelog_file}"; then
     error "Version [${BLUE}${version}${GREEN}] does not have a link entry at" \
       "the bottom of the ${BLUE}${CHANGELOG_FILENAME}${GREEN}.${NC}"
-    echo -e "${GREEN}e.g.:${NC}"
+    info "e.g.:"
     echo -e "${BLUE}[${TAG_EXAMPLE}]: ${COMPARE_URL_EXAMPLE}${NC}"
     echo
     exit 1
@@ -293,6 +300,37 @@ apply_custom_validation() {
   :
 }
 
+# See if the local repo differs from the remote
+validate_local_vs_remote() {
+  local branch_name
+  branch_name="$(git rev-parse --abbrev-ref HEAD)"
+
+  if ! git diff --quiet "${GIT_REMOTE_NAME}/${branch_name}"; then
+
+    warn "The local repository differs from ${GIT_REMOTE_NAME}/${branch_name}." \
+      "\nTo see the differences run 'git diff ${GIT_REMOTE_NAME}/${branch_name}'"
+
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+    git \
+      --no-pager \
+      diff \
+      --stat \
+      "${GIT_REMOTE_NAME}/${branch_name}"
+    echo -e "${DGREY}------------------------------------------------------------------------${NC}"
+
+    read -rsp $'Press "y" to continue anyway, any other key to cancel.\n' -n1 keyPressed
+
+    if [ "$keyPressed" = 'y' ] || [ "$keyPressed" = 'Y' ]; then
+      do_tagging
+    else
+      echo
+      info "Exiting without tagging a commit"
+      echo
+      exit 0
+    fi
+  fi
+}
+
 do_validation() {
   apply_custom_validation
   validate_version_string
@@ -304,8 +342,8 @@ do_validation() {
 
 determine_version_to_release() {
 
-  echo -e "${GREEN}Release version argument not supplied so we will try to" \
-    "work it out from ${BLUE}${CHANGELOG_FILENAME}${NC}"
+  info "Release version argument not supplied so we will try to" \
+    "work it out from ${BLUE}${CHANGELOG_FILENAME}"
   echo
 
   # Find the first mastching version or return an empty string if no matches
@@ -322,45 +360,11 @@ determine_version_to_release() {
 
 
   if [ -z "${determined_version}" ]; then
-    echo -e "${GREEN}Unable to determine the version to release from" \
-      "from the changelog.${NC}"
+    info "Unable to determine the version to release from" \
+      "from the changelog."
   fi
 
   prompt_user_for_version "${determined_version}"
-
-  #if [ -n "${determined_version}" ]; then
-    ## Found a version so seek confirmation
-
-    ## Extract the date from the version heading
-    #local date_regex="(?<=##\s\[${determined_version}\]\s-\s)\d{4}-\d{2}-\d{2}"
-    #if ! grep -q -P "${date_regex}" "${changelog_file}"; then
-      #error_exit "${GREEN}Unable to parse the date from the heading for version" \
-        #"[${BLUE}${determined_version}${GREEN}]. The heading should look like:" \
-        #"\n${YELLOW}## [v7.0-beta.111] - YYYY-MM-DD${NC}"
-    #fi
-    #local release_date
-    #release_date="$( \
-      #grep -oP \
-        #"${date_regex}" \
-        #"${changelog_file}"
-    #)"
-
-    #echo -e "${GREEN}Determined release to be" \
-      #"[${BLUE}${determined_version}${GREEN}] with date" \
-      #"[${BLUE}${release_date}${GREEN}]${NC}"
-    #echo
-
-    #read -rsp $'If this is correct press "y" to continue or any other key to cancel.\n' -n1 keyPressed
-
-    #if [ ! "$keyPressed" = 'y' ] && [ ! "$keyPressed" = 'Y' ]; then
-      #show_usage
-      #exit 1
-    #fi
-    #echo
-  #else
-    #error_exit "${GREEN}Unable to determine the version to release from" \
-      #"from the changelog. Is it structured correctly?${NC}"
-  #fi
 }
 
 commit_changelog() {
@@ -382,7 +386,7 @@ commit_changelog() {
   fi
 
   if ! git diff --quiet; then
-    echo -e "${GREEN}The following changes have been made to the changelog:${NC}"
+    info "The following changes have been made to the changelog:"
 
     echo
     echo -e "${DGREY}------------------------------------------------------------------------${NC}"
@@ -401,13 +405,13 @@ commit_changelog() {
     fi
   fi
 
-  echo -e "${GREEN}Adding ${BLUE}${CHANGELOG_FILENAME}${GREEN} to the git index.${NC}"
+  info "Adding ${BLUE}${CHANGELOG_FILENAME}${GREEN} to the git index."
   git add "${changelog_file}"
 
-  echo -e "${GREEN}Committing the staged changes${NC}"
+  info "Committing the staged changes"
   git commit -m "Update CHANGELOG for release ${next_release_version}"
 
-  echo -e "${GREEN}Pushing the changelog changes to the remote repository${NC}"
+  info "Pushing the changelog changes to the remote repository"
   git push
 }
 
@@ -415,8 +419,8 @@ modify_changelog() {
   local prev_release_version="$1"; shift
   local next_release_version="$1"; shift
 
-  echo -e "${GREEN}Adding version [${BLUE}${next_release_version}${GREEN}]" \
-    "to the changelog file [${BLUE}${CHANGELOG_FILENAME}${GREEN}] ${NC}"
+  info "Adding version [${BLUE}${next_release_version}${GREEN}]" \
+    "to the changelog file [${BLUE}${CHANGELOG_FILENAME}${GREEN}]"
 
   local new_heading
   new_heading="## [${next_release_version}] - ${curr_date}"
@@ -483,18 +487,18 @@ prepare_changelog_for_release() {
   local next_release_version=""
   local next_release_version_guess=""
 
-  echo -e "${GREEN}There are unrelased changes in the changelog:\n"
+  info "There are unrelased changes in the changelog:\n"
 
   for line in "${unreleased_changes[@]}"; do
     echo -e "  ${YELLOW}${line}${NC}"
   done
 
-  echo -e "\n${GREEN}The changelog needs to be modified for a new release" \
-    "version.${NC}"
+  info "\nThe changelog needs to be modified for a new release" \
+    "version."
 
   if [ -n "${prev_release_version}" ]; then
-    echo -e "\n${GREEN}The last release tag/version was:" \
-      "${BLUE}${prev_release_version}${NC}"
+    info "\nThe last release tag/version was:" \
+      "${BLUE}${prev_release_version}"
 
 
     if [[ "${prev_release_version}" =~ \.([0-9]+)$ ]]; then
@@ -518,17 +522,6 @@ prepare_changelog_for_release() {
     # Ask the user what version tag they want and validate what
     # they provide
     prompt_user_for_version "${next_release_version_guess}"
-    #local is_valid_version_str=false
-    #while [[ "${is_valid_version_str}" = false ]]; do
-      #read \
-        #-e \
-        #-p "$(echo -e "${GREEN}Enter the tag/version for this release:${NC}")"$'\n' \
-        #-i "${next_release_version_guess}" version
-
-      #if validate_version_string false && validate_for_duplicate_tag false; then
-        #is_valid_version_str=true
-      #fi
-    #done
   fi
 
   modify_changelog "${prev_release_version}" "${version}"
@@ -539,17 +532,17 @@ parse_changelog() {
 
   # Read each line of the changelog to find out what state it is in
   while read -r line; do
-    #echo "line: ${line}"
+    #debug "line: ${line}"
 
     if [[ "${line}" =~ ${UNRELEASED_HEADING_REGEX} ]]; then
-      #echo "line: ${line}"
+      #debug "line: ${line}"
       seen_unreleased_heading=true
     fi
 
     if [[ "${seen_unreleased_heading}" = true \
       && -z "${most_recent_release_version}" \
       && "${line}" =~ ${ISSUE_LINE_REGEX} ]]; then
-      #echo "line: ${line}"
+      #debug "line: ${line}"
       are_unreleased_issues=true
       unreleased_changes+=( "${line}" )
     fi
@@ -558,7 +551,7 @@ parse_changelog() {
       && ! "${line}" =~ ${UNRELEASED_HEADING_REGEX}
       && "${line}" =~ ${HEADING_REGEX} \
       && -z "${most_recent_release_version}" ]]; then
-      #echo "line: ${line}"
+      #debug "line: ${line}"
 
       # HEADING_REGEX captures the content of the heading as the first group
       most_recent_release_version="${BASH_REMATCH[1]}"
@@ -575,10 +568,11 @@ parse_changelog() {
 
 main() {
   setup_echo_colours
-  echo
 
   local repo_root
   repo_root="$(git rev-parse --show-toplevel)"
+  # Switch to the repo root so all git commands are run from there
+  pushd "${repo_root}" > /dev/null
 
   local tag_release_config_file="${repo_root}/${TAG_RELEASE_CONFIG_FILENAME}"
 
@@ -607,10 +601,14 @@ main() {
       "in ${BLUE}${tag_release_config_file}${NC}"
   fi
 
+  # Ensure we have all the tags from the remote
+  git fetch --tags
+
   # Initial validation before we start modifying the changelog
   validate_changelog_exists
   validate_unreleased_heading_in_changelog
   validate_for_uncommitted_work
+  validate_local_vs_remote
   validate_in_git_repo
 
   local most_recent_release_version=""
@@ -633,8 +631,8 @@ main() {
     # set up the new release heading in it.
     prepare_changelog_for_release "${most_recent_release_version}"
   else
-    echo -e "${GREEN}There are no unreleased changes in the changelog so" \
-      "assuming the changelog has been prepared for a release.${NC}"
+    info "There are no unreleased changes in the changelog so" \
+      "assuming the changelog has been prepared for a release."
     if [[ -n "${requested_version}" ]]; then
       version="${requested_version}"
     else
