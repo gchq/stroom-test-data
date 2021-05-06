@@ -80,9 +80,9 @@
 # CHANGELOG for tag_release.sh
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# 2019-10-04 - Check if determined version has been tagged
-# 2019-10-04 - Refactor to use tag_release_config.env
-# 2021-05-05 - Add changelog updating
+# v1.0 2019-10-04 Check if determined version has been tagged
+# v1.1 2019-10-04 Refactor to use tag_release_config.env
+# v1.2 2021-05-05 Add changelog updating
 
 set -euo pipefail
 
@@ -622,6 +622,7 @@ create_config_file() {
   #}
 
 }
+
 EOF
 
   # 'origin https://github.com/gchq/stroom.git (fetch)' => 'gchq stroom'
