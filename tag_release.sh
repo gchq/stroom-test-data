@@ -308,7 +308,7 @@ validate_compare_link_exists() {
 validate_for_uncommitted_work() {
   if [ "$(git status --porcelain 2>/dev/null | wc -l)" -ne 0 ]; then
     error_exit "There are uncommitted changes or untracked files." \
-      "Commit them before tagging.${NC}"
+      "Commit them before running this script.${NC}"
   fi
 }
 
@@ -704,6 +704,7 @@ main() {
   fi
 
   # Ensure we have all the tags from the remote
+  info "Fetching tags"
   git fetch --tags
 
   # Initial validation before we start modifying the changelog
